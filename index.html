@@ -115,11 +115,21 @@
     cursor: pointer; padding: 0; flex-shrink: 0;
   }
   .flip-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .flash-btn {
+    width: 60px; height: 44px; border-radius: 22px;
+    border: 1px solid var(--amber-dim);
+    background: var(--dark-edge);
+    color: var(--paper-dim);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 0; flex-shrink: 0;
+  }
+  .flash-btn.active { border-color: var(--amber); background: rgba(232,163,61,0.18); color: var(--amber); }
+  .flash-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .frame-counter { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 4px; background: var(--dark-edge); border: 1px solid var(--amber-dim); flex-shrink: 0; }
   .rec-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--safety); box-shadow: 0 0 6px var(--safety); }
   .frame-num { font-family: 'Courier New', monospace; font-size: 13px; letter-spacing: 0.05em; color: var(--amber); text-shadow: 0 0 8px var(--amber-dim); white-space: nowrap; }
-  .viewfinder { position: relative; flex: 1; margin-bottom: 16px; border-radius: 4px; overflow: hidden; background: #000; min-height: 200px; }
-  .viewfinder video, .viewfinder .placeholder { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .viewfinder { position: relative; width: 100%; aspect-ratio: 3 / 4; flex: 0 0 auto; margin-bottom: 16px; border-radius: 4px; overflow: hidden; background: #000; }
+  .viewfinder video, .viewfinder .placeholder { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
   .placeholder { background: linear-gradient(200deg,#3a3428 0%,#8c6423 40%,#1C1815 100%); }
   .corner { position: absolute; width: 16px; height: 16px; border-color: var(--paper); opacity: 0.6; }
   .corner.tl { top: 12px; left: 12px; border-top: 2px solid; border-left: 2px solid; }
@@ -150,6 +160,9 @@
   h2.title2 { font-family: Georgia, serif; font-size: 24px; color: var(--paper); margin: 0 0 8px; }
   .desc { font-size: 14px; line-height: 1.6; color: var(--paper-dim); margin-bottom: 24px; }
   .countdown-pill { font-family: 'Courier New', monospace; font-size: 14px; padding: 6px 12px; border-radius: 4px; background: var(--dark-edge); color: var(--amber); border: 1px solid var(--amber-dim); }
+  .developed-strip { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-height: 190px; overflow-y: auto; margin: 4px 0 10px; padding: 4px 0; }
+  .developed-thumb { width: 54px; height: 54px; border-radius: 4px; background-size: cover; background-position: center; border: 1px solid #332e28; flex-shrink: 0; }
+  .developed-note { font-size: 11px; color: var(--paper-dim); margin: 0 0 20px; }
   .reveal-count { font-size: 12px; color: var(--paper-dim); margin-bottom: 4px; }
   .reveal-note { font-size: 11px; color: var(--paper-dim); margin-bottom: 16px; line-height: 1.5; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex: 1; overflow-y: auto; }
@@ -230,7 +243,11 @@
           <circle cx="12" cy="13" r="3"></circle>
         </svg>
       </button>
-      <div style="width:60px;"></div>
+      <button class="flash-btn" id="btn-flash" title="Flash" aria-label="Flash">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+      </button>
     </div>
     <div class="roll-section">
       <div class="roll-header">
@@ -247,6 +264,8 @@
     <div style="color: var(--amber); font-size: 28px; margin-bottom: 12px;">✦</div>
     <h2 class="title2">Film kamu sudah habis</h2>
     <p class="desc" id="done-desc"></p>
+    <div class="developed-strip" id="developed-strip"></div>
+    <p class="developed-note">Album lengkap masih dikembangkan.</p>
     <div class="countdown-pill" id="countdown-pill">Terungkap dalam 0:08 (demo)</div>
   </div>
 
@@ -381,7 +400,7 @@
   // key (guest id/secret, name, preset, roll status, sequence counter), so a fresh
   // reload behaves exactly like a brand-new guest opening the app for the first time.
   async function resetAllLocalData() {
-    try { if (typeof stopCamera === 'function') stopCamera(); } catch (e) {}
+    try { if (typeof stopCamera === 'function') await stopCamera(); } catch (e) {}
     try { await idbClearAll(); } catch (e) {}
     Object.keys(localStorage)
       .filter(k => k.indexOf('wc_') === 0)
@@ -389,7 +408,7 @@
   }
 
   // ---------- state ----------
-  const state = { guestId: null, guestSecret: null, guestName: '', preset: null, shots: [], facingMode: 'environment', rollStatus: 'active', demoSeconds: 8 };
+  const state = { guestId: null, guestSecret: null, guestName: '', preset: null, shots: [], facingMode: 'environment', rollStatus: 'active', flashOn: false, torchSupported: false, demoSeconds: 8 };
 
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -451,6 +470,7 @@
   const btnShutter = document.getElementById('btn-shutter');
   const btnFinishEarly = document.getElementById('btn-finish-early');
   const btnFlip = document.getElementById('btn-flip');
+  const btnFlash = document.getElementById('btn-flash');
   const rollFullMsg = document.getElementById('roll-full-msg');
   const rollCount = document.getElementById('roll-count');
   const rollEmpty = document.getElementById('roll-empty');
@@ -478,6 +498,23 @@
       // Safety net: some mobile browsers are inconsistent about firing this event promptly.
       setTimeout(resolve, 1500);
     });
+  }
+
+  function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Best-effort: if the outgoing stream's track supports torch, make sure it's off
+  // before we stop the track. Torch is normally only ever on for the brief moment
+  // during a capture, but this is a safety net against leaving it stuck on.
+  async function turnOffTorchIfSupported(stream) {
+    try {
+      const track = stream && stream.getVideoTracks()[0];
+      const caps = track && track.getCapabilities ? track.getCapabilities() : null;
+      if (caps && caps.torch) {
+        await track.applyConstraints({ advanced: [{ torch: false }] });
+      }
+    } catch (e) {}
   }
 
   async function startCamera(preferredFacing) {
@@ -516,12 +553,19 @@
     const previousStream = camStream;
     camStream = stream;
     if (previousStream) {
+      await turnOffTorchIfSupported(previousStream);
       previousStream.getTracks().forEach(t => t.stop());
     }
 
     const track = stream.getVideoTracks()[0];
     const settings = (track && track.getSettings) ? track.getSettings() : {};
     state.facingMode = settings.facingMode || preferredFacing;
+
+    // Torch capability is specific to this track — always re-evaluate, never assume
+    // it carries over from the camera we just switched away from.
+    const caps = (track && track.getCapabilities) ? track.getCapabilities() : null;
+    state.torchSupported = !!(caps && caps.torch);
+    updateFlashButtonState();
 
     camVideo.srcObject = camStream;
     await waitForVideoReady(camVideo);
@@ -543,8 +587,9 @@
     previewLabel.textContent = message;
   }
 
-  function stopCamera() {
+  async function stopCamera() {
     if (camStream) {
+      await turnOffTorchIfSupported(camStream);
       camStream.getTracks().forEach(t => t.stop());
       camStream = null;
     }
@@ -558,6 +603,15 @@
     await startCamera(next);
     btnFlip.disabled = false;
     flipping = false;
+  });
+
+  function updateFlashButtonState() {
+    btnFlash.classList.toggle('active', state.flashOn);
+  }
+
+  btnFlash.addEventListener('click', () => {
+    state.flashOn = !state.flashOn;
+    updateFlashButtonState();
   });
 
   function updateFrameCounter() {
@@ -598,8 +652,34 @@
     if (capturing || active >= FRAME_LIMIT || !camStream) return;
     capturing = true;
     btnShutter.disabled = true;
-    flashEl.classList.add('on');
+
+    const isFront = state.facingMode === 'user';
+    const wantFlash = state.flashOn;
+    const track = camStream.getVideoTracks()[0];
+    let torchWasEnabled = false;
+
     try {
+      if (wantFlash && !isFront && state.torchSupported && track) {
+        // Real hardware torch: turn on, give exposure a moment to react, capture, then off.
+        try {
+          await track.applyConstraints({ advanced: [{ torch: true }] });
+          torchWasEnabled = true;
+        } catch (e) {
+          torchWasEnabled = false;
+        }
+        flashEl.classList.add('on');
+        if (torchWasEnabled) await wait(280);
+      } else if (wantFlash && isFront) {
+        // Screen-flash fallback: brighten the screen and capture while it's still lit,
+        // so it can act as genuine fill light on the guest's face.
+        flashEl.classList.add('on');
+        await wait(220);
+      } else {
+        // Flash off, or rear camera without torch support: a brief cosmetic pulse only —
+        // no illumination is actually happening, so no stabilization delay is added.
+        flashEl.classList.add('on');
+      }
+
       const blob = await captureFrame();
       const record = {
         id: crypto.randomUUID(),
@@ -616,15 +696,19 @@
       rollFullMsg.textContent = 'Gagal menyimpan foto, coba lagi.';
       rollFullMsg.style.display = 'block';
       setTimeout(() => { rollFullMsg.textContent = 'Rol kamu penuh. Hapus foto untuk memotret lagi.'; }, 2500);
+    } finally {
+      if (torchWasEnabled && track) {
+        try { await track.applyConstraints({ advanced: [{ torch: false }] }); } catch (e) {}
+      }
+      setTimeout(() => flashEl.classList.remove('on'), 120);
+      capturing = false;
+      updateFrameCounter();
     }
-    setTimeout(() => flashEl.classList.remove('on'), 120);
-    capturing = false;
-    updateFrameCounter();
   });
 
-  btnFinishEarly.addEventListener('click', () => {
+  btnFinishEarly.addEventListener('click', async () => {
     if (state.shots.length === 0) return;
-    stopCamera();
+    await stopCamera();
     state.rollStatus = 'finished';
     localStorage.setItem('wc_roll_status', 'finished');
     localStorage.setItem('wc_finished_at', String(Date.now()));
@@ -684,13 +768,26 @@
   // ---------- DONE ----------
   const doneDesc = document.getElementById('done-desc');
   const countdownPill = document.getElementById('countdown-pill');
+  const developedStrip = document.getElementById('developed-strip');
   let countdownTimer = null;
 
   const DEMO_REVEAL_SECONDS = 8;
 
+  function renderDevelopedStrip() {
+    developedStrip.innerHTML = '';
+    state.shots.forEach(shot => {
+      const thumb = document.createElement('div');
+      thumb.className = 'developed-thumb';
+      thumb.style.backgroundImage = `url(${shot.url})`;
+      thumb.style.filter = state.preset.filter;
+      developedStrip.appendChild(thumb);
+    });
+  }
+
   function enterDoneScreen() {
     showScreen('screen-done');
-    doneDesc.textContent = state.shots.length + ' foto tersimpan, tersembunyi sampai pesta usai. Itulah keseruannya — semua orang melihatnya sekaligus.';
+    doneDesc.textContent = state.shots.length + ' foto selesai dipotret. Rol kamu sedang dikembangkan.';
+    renderDevelopedStrip();
     const finishedAt = parseInt(localStorage.getItem('wc_finished_at') || '0', 10);
     const elapsedSeconds = finishedAt ? Math.floor((Date.now() - finishedAt) / 1000) : 0;
     state.demoSeconds = Math.max(0, DEMO_REVEAL_SECONDS - elapsedSeconds);
@@ -740,7 +837,7 @@
     if (!confirmed) return;
     btnResetTest.disabled = true;
     if (countdownTimer) { clearTimeout(countdownTimer); countdownTimer = null; }
-    stopCamera();
+    await stopCamera();
     state.shots.forEach(s => { try { URL.revokeObjectURL(s.url); } catch (e) {} });
     await resetAllLocalData();
     window.location.reload();
