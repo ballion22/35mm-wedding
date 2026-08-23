@@ -448,13 +448,6 @@
   async function startCamera(preferredFacing) {
     const requestId = ++cameraRequestId;
 
-    // Fully detach the previous stream and video content before requesting a new one,
-    // so nothing stale (old frame, old intrinsic size) carries over into the new stream.
-    stopCamera();
-    camVideo.style.transform = 'none';
-    camVideo.srcObject = null;
-    try { camVideo.load(); } catch (e) {}
-
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       showCameraUnavailable('Kamera tidak didukung di browser ini.');
       return;
@@ -483,7 +476,14 @@
       return;
     }
 
+    // Only now retire the previous stream — the video element always has a live
+    // stream attached, so there's no gap where it renders blank/black.
+    const previousStream = camStream;
     camStream = stream;
+    if (previousStream) {
+      previousStream.getTracks().forEach(t => t.stop());
+    }
+
     const track = stream.getVideoTracks()[0];
     const settings = (track && track.getSettings) ? track.getSettings() : {};
     state.facingMode = settings.facingMode || preferredFacing;
