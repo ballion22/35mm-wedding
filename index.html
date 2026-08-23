@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Kamera Foto Tamu — Dhani & Firda</title>
+<title>Film Camera — Dhani & Firda</title>
 <style>
   :root {
     --dark: #1C1815;
@@ -191,9 +191,9 @@
 
   <!-- JOIN -->
   <div class="screen active" id="screen-join">
-    <div class="eyebrow">Pernikahan</div>
+    <div class="eyebrow">The Wedding of</div>
     <h1 class="title">Dhani &amp; Firda</h1>
-    <p class="subdate">12 Oktober 2026 — Malang</p>
+    <p class="subdate">4 Oktober 2026 — Malang</p>
     <p class="body-copy">
       Kamu jadi fotografer hari ini. Masukkan nama, pilih rol film, lalu mulai memotret.
       Semua foto tersembunyi sampai pesta usai — lalu terungkap sekaligus.
@@ -286,6 +286,8 @@
   <div class="sprocket" id="sprocket-bottom"></div>
 </div>
 
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   // ---------- sprocket holes ----------
   function buildSprocket(el) {
@@ -332,6 +334,43 @@
     const n = parseInt(localStorage.getItem('wc_next_seq') || '1', 10);
     localStorage.setItem('wc_next_seq', String(n + 1));
     return n;
+  }
+
+  // ---------- Supabase (Phase 2) ----------
+  // Both config.js and the Supabase library are loaded as plain <script> tags
+  // before this one. If either failed to load (offline, config.js not yet
+  // deployed, CDN blocked), we fall back to null and the app keeps working
+  // exactly as it did in Phase 1 — nothing here is allowed to block the
+  // camera, capture, or local roll.
+  const supabaseClient = (window.supabase && window.WEDDING_CONFIG && window.WEDDING_CONFIG.supabaseUrl)
+    ? window.supabase.createClient(window.WEDDING_CONFIG.supabaseUrl, window.WEDDING_CONFIG.supabaseAnonKey)
+    : null;
+
+  // Registers or re-verifies this device's guest identity with the backend.
+  // Fire-and-forget by design: failure here must never block the guest from
+  // shooting — it just means their photos stay local-only until the next
+  // successful attempt (e.g. on the next page load).
+  async function registerGuestWithServer() {
+    if (!supabaseClient || !state.guestId || !state.guestSecret) return;
+    try {
+      const { data, error } = await supabaseClient.functions.invoke('guest-register', {
+        body: {
+          guestId: state.guestId,
+          guestSecret: state.guestSecret,
+          guestName: state.guestName || ''
+        }
+      });
+      if (error) {
+        console.error('guest-register failed:', error);
+        return;
+      }
+      if (data && data.ok) {
+        state.serverSynced = true;
+      }
+    } catch (err) {
+      // Offline, DNS failure, CORS misconfig, etc. — stay silent to the guest.
+      console.error('guest-register request failed:', err);
+    }
   }
 
   // ---------- IndexedDB (photo blobs) ----------
@@ -408,7 +447,7 @@
   }
 
   // ---------- state ----------
-  const state = { guestId: null, guestSecret: null, guestName: '', preset: null, shots: [], facingMode: 'environment', rollStatus: 'active', flashOn: false, torchSupported: false, demoSeconds: 8 };
+  const state = { guestId: null, guestSecret: null, guestName: '', preset: null, shots: [], facingMode: 'environment', rollStatus: 'active', flashOn: false, torchSupported: false, serverSynced: false, demoSeconds: 8 };
 
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -425,6 +464,7 @@
   btnJoin.addEventListener('click', () => {
     state.guestName = state.guestName.trim();
     localStorage.setItem('wc_guest_name', state.guestName);
+    registerGuestWithServer();
     showScreen('screen-preset');
   });
 
@@ -917,6 +957,11 @@
       state.guestName = savedName;
       state.preset = savedPreset;
       state.rollStatus = savedStatus;
+
+      // Covers both normal returning guests (keeps last_seen_at fresh) and
+      // existing Phase 1 testers whose local identity predates Supabase
+      // entirely — this is what gets them registered without any reset.
+      registerGuestWithServer();
 
       if (savedStatus === 'finished') {
         enterDoneScreen();
