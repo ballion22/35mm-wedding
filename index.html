@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Kamera Foto Tamu — Dhani & Firda</title>
 <style>
   :root {
@@ -24,7 +24,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 16px;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)) 16px;
   }
   .phone {
     width: 100%;
@@ -103,12 +103,22 @@
   .preset-name { font-weight: 600; font-size: 15px; color: var(--paper); }
   .preset-mood { font-size: 12px; color: var(--paper-dim); }
   .preset-check { margin-left: auto; color: var(--amber); font-size: 18px; }
-  .cam-top { display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; }
-  .cam-caption { font-size: 12px; color: var(--paper-dim); }
-  .frame-counter { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 4px; background: var(--dark-edge); border: 1px solid var(--amber-dim); }
+  .cam-top { display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; gap: 8px; }
+  .cam-caption { font-size: 12px; color: var(--paper-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cam-top-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .flip-btn {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 1px solid var(--amber-dim);
+    background: var(--dark-edge);
+    color: var(--paper);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 0; flex-shrink: 0;
+  }
+  .flip-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .frame-counter { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 4px; background: var(--dark-edge); border: 1px solid var(--amber-dim); flex-shrink: 0; }
   .rec-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--safety); box-shadow: 0 0 6px var(--safety); }
-  .frame-num { font-family: 'Courier New', monospace; font-size: 14px; letter-spacing: 0.1em; color: var(--amber); text-shadow: 0 0 8px var(--amber-dim); }
-  .viewfinder { position: relative; flex: 1; margin-bottom: 16px; border-radius: 4px; overflow: hidden; background: #000; min-height: 280px; }
+  .frame-num { font-family: 'Courier New', monospace; font-size: 13px; letter-spacing: 0.05em; color: var(--amber); text-shadow: 0 0 8px var(--amber-dim); white-space: nowrap; }
+  .viewfinder { position: relative; margin-bottom: 16px; border-radius: 4px; overflow: hidden; background: #000; min-height: 240px; flex-shrink: 0; }
   .viewfinder video, .viewfinder .placeholder { width: 100%; height: 100%; object-fit: cover; display: block; }
   .placeholder { background: linear-gradient(200deg,#3a3428 0%,#8c6423 40%,#1C1815 100%); }
   .corner { position: absolute; width: 16px; height: 16px; border-color: var(--paper); opacity: 0.6; }
@@ -116,20 +126,34 @@
   .corner.tr { top: 12px; right: 12px; border-top: 2px solid; border-right: 2px solid; }
   .corner.bl { bottom: 12px; left: 12px; border-bottom: 2px solid; border-left: 2px solid; }
   .corner.br { bottom: 12px; right: 12px; border-bottom: 2px solid; border-right: 2px solid; }
-  .preview-label { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 10px; color: var(--paper-dim); }
+  .preview-label { position: absolute; bottom: 8px; left: 8px; right: 8px; text-align: center; font-size: 10px; color: var(--paper-dim); }
   .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity 0.1s; }
   .flash.on { opacity: 1; }
+  .roll-full-msg { font-size: 12px; color: var(--safety); text-align: center; margin-bottom: 8px; display: none; }
   .cam-controls { display: flex; align-items: center; justify-content: space-between; }
   .link-btn { background: none; border: none; color: var(--paper-dim); text-decoration: underline; font-size: 12px; cursor: pointer; padding: 0; }
-  .shutter { width: 64px; height: 64px; border-radius: 50%; background: var(--paper); border: 4px solid var(--amber); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .shutter { width: 64px; height: 64px; border-radius: 50%; background: var(--paper); border: 4px solid var(--amber); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
   .shutter:disabled { border-color: var(--paper-dim); opacity: 0.5; cursor: not-allowed; }
+  .roll-section { margin-top: 18px; }
+  .roll-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .roll-title { font-family: Georgia, serif; font-size: 14px; color: var(--paper); }
+  .roll-count { font-size: 11px; color: var(--paper-dim); font-family: 'Courier New', monospace; }
+  .roll-empty { font-size: 12px; color: var(--paper-dim); padding: 10px 0; }
+  .roll-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+  .roll-thumb-wrap { position: relative; flex: 0 0 auto; }
+  .roll-thumb { width: 56px; height: 56px; border-radius: 4px; border: 1px solid #332e28; background-size: cover; background-position: center; padding: 0; cursor: pointer; display: block; }
+  .roll-confirm { position: absolute; inset: 0; background: rgba(18,16,13,0.94); border-radius: 4px; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .roll-confirm span { font-size: 9px; color: var(--paper); }
+  .roll-confirm button { font-size: 9px; border: none; background: none; color: var(--amber); cursor: pointer; padding: 2px 4px; }
+  .roll-confirm-no { color: var(--paper-dim) !important; }
   .center-screen { align-items: center; justify-content: center; text-align: center; }
   h2.title2 { font-family: Georgia, serif; font-size: 24px; color: var(--paper); margin: 0 0 8px; }
   .desc { font-size: 14px; line-height: 1.6; color: var(--paper-dim); margin-bottom: 24px; }
   .countdown-pill { font-family: 'Courier New', monospace; font-size: 14px; padding: 6px 12px; border-radius: 4px; background: var(--dark-edge); color: var(--amber); border: 1px solid var(--amber-dim); }
-  .reveal-count { font-size: 12px; color: var(--paper-dim); margin-bottom: 16px; }
+  .reveal-count { font-size: 12px; color: var(--paper-dim); margin-bottom: 4px; }
+  .reveal-note { font-size: 11px; color: var(--paper-dim); margin-bottom: 16px; line-height: 1.5; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex: 1; overflow-y: auto; }
-  .grid-item-photo { width: 100%; aspect-ratio: 3/4; border-radius: 4px; }
+  .grid-item-photo { width: 100%; aspect-ratio: 3/4; border-radius: 4px; background-size: cover; background-position: center; }
   .grid-item-caption { font-size: 10px; color: var(--paper-dim); margin-top: 4px; }
   .toast { font-size: 12px; text-align: center; color: var(--amber); margin-bottom: 8px; min-height: 16px; }
 </style>
@@ -165,15 +189,26 @@
   <div class="screen" id="screen-camera">
     <div class="cam-top">
       <span class="cam-caption" id="cam-caption"></span>
-      <div class="frame-counter"><div class="rec-dot"></div><span class="frame-num" id="frame-num">10/10</span></div>
+      <div class="cam-top-right">
+        <button class="flip-btn" id="btn-flip" title="Ganti kamera" aria-label="Ganti kamera">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="17 1 21 5 17 9"></polyline>
+            <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+            <polyline points="7 23 3 19 7 15"></polyline>
+            <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+          </svg>
+        </button>
+        <div class="frame-counter"><div class="rec-dot"></div><span class="frame-num" id="frame-num">15/15 tersisa</span></div>
+      </div>
     </div>
     <div class="viewfinder" id="viewfinder">
       <div class="placeholder" id="cam-placeholder"></div>
-      <video id="cam-video" muted playsinline style="display:none; transform: scaleX(-1);"></video>
+      <video id="cam-video" muted playsinline autoplay style="display:none;"></video>
       <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
       <div class="preview-label" id="preview-label">mode pratinjau</div>
       <div class="flash" id="flash"></div>
     </div>
+    <div class="roll-full-msg" id="roll-full-msg">Rol kamu penuh. Hapus foto untuk memotret lagi.</div>
     <div class="cam-controls">
       <button class="link-btn" id="btn-finish-early">Selesai lebih awal</button>
       <button class="shutter" id="btn-shutter">
@@ -183,6 +218,14 @@
         </svg>
       </button>
       <div style="width:60px;"></div>
+    </div>
+    <div class="roll-section">
+      <div class="roll-header">
+        <span class="roll-title">Rol Kamu</span>
+        <span class="roll-count" id="roll-count">0 foto</span>
+      </div>
+      <div class="roll-empty" id="roll-empty">Foto yang kamu ambil akan muncul di sini.</div>
+      <div class="roll-strip" id="roll-strip"></div>
     </div>
   </div>
 
@@ -199,6 +242,7 @@
     <div class="eyebrow">Album terungkap</div>
     <h2 class="title2">Dhani &amp; Firda</h2>
     <p class="reveal-count" id="reveal-count"></p>
+    <p class="reveal-note">Pratinjau lokal dari rol kamu. Album lengkap dari semua tamu akan tampil setelah tersambung ke server.</p>
     <div class="grid" id="reveal-grid"></div>
     <div style="margin-top:16px;">
       <div class="toast" id="toast"></div>
@@ -232,16 +276,85 @@
       filter: 'contrast(1.18) saturate(1.35) hue-rotate(6deg) brightness(0.94)',
       swatch: 'linear-gradient(135deg,#2b2540 0%,#c4432e 55%,#12100D 100%)' },
   ];
-  const MAX_SHOTS = 10;
-  const MOCK_OTHERS = [
-    { guest: 'Rina', gradient: 'linear-gradient(160deg,#e8a33d,#4a3728)' },
-    { guest: 'Bayu', gradient: 'linear-gradient(160deg,#4a6b5a,#1C1815)' },
-    { guest: 'Made', gradient: 'linear-gradient(160deg,#c4432e,#2b2540)' },
-    { guest: 'Sari', gradient: 'linear-gradient(160deg,#8fae6b,#12100D)' },
-  ];
+  const FRAME_LIMIT = 15;
+  const CAPTURE_MAX_DIM = 1280;
+  const CAPTURE_QUALITY = 0.85;
+
+  // ---------- local identity (Phase 2 will use these to authorize uploads) ----------
+  function getOrCreateGuest() {
+    let guestId = localStorage.getItem('wc_guest_id');
+    let guestSecret = localStorage.getItem('wc_guest_secret');
+    if (!guestId) {
+      guestId = crypto.randomUUID();
+      localStorage.setItem('wc_guest_id', guestId);
+    }
+    if (!guestSecret) {
+      guestSecret = crypto.randomUUID();
+      localStorage.setItem('wc_guest_secret', guestSecret);
+    }
+    return { guestId, guestSecret };
+  }
+
+  function getNextSeq() {
+    const n = parseInt(localStorage.getItem('wc_next_seq') || '1', 10);
+    localStorage.setItem('wc_next_seq', String(n + 1));
+    return n;
+  }
+
+  // ---------- IndexedDB (photo blobs) ----------
+  const DB_NAME = 'wedding-cam-db';
+  const DB_VERSION = 1;
+  const STORE = 'photos';
+
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(STORE)) {
+          db.createObjectStore(STORE, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function idbPut(record) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put(record);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function idbDelete(id) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function idbGetAllForGuest(guestId) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readonly');
+      const req = tx.objectStore(STORE).getAll();
+      req.onsuccess = () => {
+        const all = req.result || [];
+        resolve(all.filter(r => r.guestId === guestId).sort((a, b) => a.seq - b.seq));
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
 
   // ---------- state ----------
-  const state = { guestName: '', preset: null, shots: [], demoSeconds: 8 };
+  const state = { guestId: null, guestSecret: null, guestName: '', preset: null, shots: [], facingMode: 'environment', demoSeconds: 8 };
 
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -255,7 +368,11 @@
     state.guestName = guestInput.value;
     btnJoin.disabled = guestInput.value.trim().length === 0;
   });
-  btnJoin.addEventListener('click', () => showScreen('screen-preset'));
+  btnJoin.addEventListener('click', () => {
+    state.guestName = state.guestName.trim();
+    localStorage.setItem('wc_guest_name', state.guestName);
+    showScreen('screen-preset');
+  });
 
   // ---------- PRESET ----------
   const presetList = document.getElementById('preset-list');
@@ -284,6 +401,7 @@
     presetList.appendChild(card);
   });
   btnPreset.addEventListener('click', () => {
+    localStorage.setItem('wc_preset_id', state.preset.id);
     showScreen('screen-camera');
     enterCameraScreen();
   });
@@ -297,34 +415,57 @@
   const flashEl = document.getElementById('flash');
   const btnShutter = document.getElementById('btn-shutter');
   const btnFinishEarly = document.getElementById('btn-finish-early');
+  const btnFlip = document.getElementById('btn-flip');
+  const rollFullMsg = document.getElementById('roll-full-msg');
+  const rollCount = document.getElementById('roll-count');
+  const rollEmpty = document.getElementById('roll-empty');
+  const rollStrip = document.getElementById('roll-strip');
   let camStream = null;
+  let capturing = false;
+  let flipping = false;
 
   function enterCameraScreen() {
     camCaption.textContent = state.guestName + ' · ' + state.preset.name;
     camPlaceholder.style.filter = state.preset.filter;
     camVideo.style.filter = state.preset.filter;
+    renderRoll();
     updateFrameCounter();
+    startCamera(state.facingMode);
+  }
 
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
-        .then(stream => {
-          camStream = stream;
-          camVideo.srcObject = stream;
-          camVideo.play().catch(() => {});
-          camVideo.style.display = 'block';
-          camPlaceholder.style.display = 'none';
-          previewLabel.style.display = 'none';
-        })
-        .catch(() => {
-          camVideo.style.display = 'none';
-          camPlaceholder.style.display = 'block';
-          previewLabel.style.display = 'block';
-        });
-    } else {
-      camVideo.style.display = 'none';
-      camPlaceholder.style.display = 'block';
-      previewLabel.style.display = 'block';
+  async function startCamera(preferredFacing) {
+    stopCamera();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showCameraUnavailable('Kamera tidak didukung di browser ini.');
+      return;
     }
+    try {
+      camStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: preferredFacing } },
+        audio: false
+      });
+      state.facingMode = preferredFacing;
+    } catch (e) {
+      try {
+        camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      } catch (e2) {
+        showCameraUnavailable('Tidak bisa mengakses kamera. Periksa izin kamera di browser.');
+        return;
+      }
+    }
+    camVideo.srcObject = camStream;
+    camVideo.style.transform = state.facingMode === 'user' ? 'scaleX(-1)' : 'none';
+    try { await camVideo.play(); } catch (e) {}
+    camVideo.style.display = 'block';
+    camPlaceholder.style.display = 'none';
+    previewLabel.style.display = 'none';
+  }
+
+  function showCameraUnavailable(message) {
+    camVideo.style.display = 'none';
+    camPlaceholder.style.display = 'block';
+    previewLabel.style.display = 'block';
+    previewLabel.textContent = message;
   }
 
   function stopCamera() {
@@ -334,28 +475,76 @@
     }
   }
 
+  btnFlip.addEventListener('click', async () => {
+    if (flipping) return;
+    flipping = true;
+    btnFlip.disabled = true;
+    const next = state.facingMode === 'environment' ? 'user' : 'environment';
+    await startCamera(next);
+    btnFlip.disabled = false;
+    flipping = false;
+  });
+
   function updateFrameCounter() {
-    const remaining = MAX_SHOTS - state.shots.length;
-    frameNum.textContent = String(remaining).padStart(2, '0') + '/' + MAX_SHOTS;
-    btnShutter.disabled = remaining <= 0;
-    return remaining;
+    const active = state.shots.length;
+    const available = Math.max(0, FRAME_LIMIT - active);
+    frameNum.textContent = available + '/' + FRAME_LIMIT + ' tersisa';
+    const full = available <= 0;
+    btnShutter.disabled = full || capturing;
+    rollFullMsg.style.display = full ? 'block' : 'none';
+    return available;
   }
 
-  let capturing = false;
-  btnShutter.addEventListener('click', () => {
-    const remaining = MAX_SHOTS - state.shots.length;
-    if (capturing || remaining <= 0) return;
-    capturing = true;
-    flashEl.classList.add('on');
-    setTimeout(() => {
-      state.shots.push({ hue: Math.floor(Math.random() * 40) - 20 });
-      flashEl.classList.remove('on');
-      capturing = false;
-      const rem = updateFrameCounter();
-      if (rem <= 0) {
-        setTimeout(() => { stopCamera(); enterDoneScreen(); }, 500);
+  function captureFrame() {
+    return new Promise((resolve, reject) => {
+      const vw = camVideo.videoWidth;
+      const vh = camVideo.videoHeight;
+      if (!vw || !vh) { reject(new Error('video not ready')); return; }
+      let tw = vw, th = vh;
+      const maxSide = Math.max(vw, vh);
+      if (maxSide > CAPTURE_MAX_DIM) {
+        const scale = CAPTURE_MAX_DIM / maxSide;
+        tw = Math.round(vw * scale);
+        th = Math.round(vh * scale);
       }
-    }, 150);
+      const canvas = document.createElement('canvas');
+      canvas.width = tw;
+      canvas.height = th;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(camVideo, 0, 0, tw, th);
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob); else reject(new Error('toBlob failed'));
+      }, 'image/jpeg', CAPTURE_QUALITY);
+    });
+  }
+
+  btnShutter.addEventListener('click', async () => {
+    const active = state.shots.length;
+    if (capturing || active >= FRAME_LIMIT || !camStream) return;
+    capturing = true;
+    btnShutter.disabled = true;
+    flashEl.classList.add('on');
+    try {
+      const blob = await captureFrame();
+      const record = {
+        id: crypto.randomUUID(),
+        guestId: state.guestId,
+        seq: getNextSeq(),
+        filmId: state.preset.id,
+        blob: blob,
+        capturedAt: Date.now()
+      };
+      await idbPut(record);
+      state.shots.push(Object.assign({}, record, { url: URL.createObjectURL(blob) }));
+      renderRoll();
+    } catch (err) {
+      rollFullMsg.textContent = 'Gagal menyimpan foto, coba lagi.';
+      rollFullMsg.style.display = 'block';
+      setTimeout(() => { rollFullMsg.textContent = 'Rol kamu penuh. Hapus foto untuk memotret lagi.'; }, 2500);
+    }
+    setTimeout(() => flashEl.classList.remove('on'), 120);
+    capturing = false;
+    updateFrameCounter();
   });
 
   btnFinishEarly.addEventListener('click', () => {
@@ -363,6 +552,56 @@
     stopCamera();
     enterDoneScreen();
   });
+
+  function renderRoll() {
+    rollCount.textContent = state.shots.length + ' foto';
+    rollStrip.innerHTML = '';
+    if (state.shots.length === 0) {
+      rollEmpty.style.display = 'block';
+      rollStrip.style.display = 'none';
+      return;
+    }
+    rollEmpty.style.display = 'none';
+    rollStrip.style.display = 'flex';
+    state.shots.forEach(shot => {
+      const wrap = document.createElement('div');
+      wrap.className = 'roll-thumb-wrap';
+      wrap.innerHTML = `
+        <button class="roll-thumb" style="background-image:url(${shot.url}); filter:${state.preset.filter};" data-id="${shot.id}" aria-label="Foto"></button>
+        <div class="roll-confirm" data-id="${shot.id}">
+          <span>Hapus?</span>
+          <button class="roll-confirm-yes" data-id="${shot.id}">Ya</button>
+          <button class="roll-confirm-no" data-id="${shot.id}">Batal</button>
+        </div>
+      `;
+      rollStrip.appendChild(wrap);
+    });
+  }
+
+  rollStrip.addEventListener('click', async (e) => {
+    const thumbBtn = e.target.closest('.roll-thumb');
+    const yesBtn = e.target.closest('.roll-confirm-yes');
+    const noBtn = e.target.closest('.roll-confirm-no');
+    document.querySelectorAll('.roll-confirm').forEach(el => { el.style.display = 'none'; });
+    if (thumbBtn) {
+      const id = thumbBtn.dataset.id;
+      const confirmEl = rollStrip.querySelector(`.roll-confirm[data-id="${id}"]`);
+      if (confirmEl) confirmEl.style.display = 'flex';
+    } else if (yesBtn) {
+      await deletePhoto(yesBtn.dataset.id);
+    }
+  });
+
+  async function deletePhoto(id) {
+    try {
+      await idbDelete(id);
+    } catch (e) {}
+    const shot = state.shots.find(s => s.id === id);
+    if (shot) URL.revokeObjectURL(shot.url);
+    state.shots = state.shots.filter(s => s.id !== id);
+    renderRoll();
+    updateFrameCounter();
+  }
 
   // ---------- DONE ----------
   const doneDesc = document.getElementById('done-desc');
@@ -396,18 +635,13 @@
 
   function enterRevealScreen() {
     showScreen('screen-reveal');
-    const myPhotos = state.shots.map(s => ({
-      guest: state.guestName || 'Kamu',
-      gradient: 'linear-gradient(160deg, hsl(' + (40 + s.hue) + ' 60% 45%), #1C1815)',
-    }));
-    const all = myPhotos.concat(MOCK_OTHERS);
-    revealCount.textContent = all.length + ' foto dari semua tamu';
+    revealCount.textContent = state.shots.length + ' foto dari rol kamu';
     revealGrid.innerHTML = '';
-    all.forEach(p => {
+    state.shots.forEach(shot => {
       const item = document.createElement('div');
       item.innerHTML = `
-        <div class="grid-item-photo" style="background:${p.gradient}; filter:${state.preset.filter};"></div>
-        <div class="grid-item-caption">${p.guest}</div>
+        <div class="grid-item-photo" style="background-image:url(${shot.url}); filter:${state.preset.filter};"></div>
+        <div class="grid-item-caption">${state.guestName || 'Kamu'}</div>
       `;
       revealGrid.appendChild(item);
     });
@@ -416,6 +650,32 @@
   btnDownload.addEventListener('click', () => {
     toast.textContent = 'Unduh akan aktif setelah tersambung ke Supabase';
   });
+
+  // ---------- INIT ----------
+  async function init() {
+    const identity = getOrCreateGuest();
+    state.guestId = identity.guestId;
+    state.guestSecret = identity.guestSecret;
+
+    try {
+      const records = await idbGetAllForGuest(state.guestId);
+      state.shots = records.map(r => Object.assign({}, r, { url: URL.createObjectURL(r.blob) }));
+    } catch (e) {
+      state.shots = [];
+    }
+
+    const savedName = localStorage.getItem('wc_guest_name');
+    const savedPresetId = localStorage.getItem('wc_preset_id');
+    const savedPreset = savedPresetId ? PRESETS.find(p => p.id === savedPresetId) : null;
+
+    if (savedName && savedPreset) {
+      state.guestName = savedName;
+      state.preset = savedPreset;
+      showScreen('screen-camera');
+      enterCameraScreen();
+    }
+  }
+  init();
 </script>
 </body>
 </html>
