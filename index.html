@@ -175,6 +175,9 @@
     <div class="spacer"></div>
     <input type="text" id="guest-name-input" placeholder="Nama kamu" />
     <button class="btn-primary" id="btn-join" disabled>Ambil kamera →</button>
+    <div style="text-align:center; margin-top:14px;">
+      <button class="link-btn" id="btn-reset-testing">Reset data pengujian (mulai dari ID baru)</button>
+    </div>
   </div>
 
   <!-- PRESET -->
@@ -353,6 +356,27 @@
     });
   }
 
+  async function idbClearAll() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  // Testing-only utility: wipe every locally stored photo and every wc_* localStorage
+  // key (guest id/secret, name, preset, roll status, sequence counter), so a fresh
+  // reload behaves exactly like a brand-new guest opening the app for the first time.
+  async function resetAllLocalData() {
+    try { if (typeof stopCamera === 'function') stopCamera(); } catch (e) {}
+    try { await idbClearAll(); } catch (e) {}
+    Object.keys(localStorage)
+      .filter(k => k.indexOf('wc_') === 0)
+      .forEach(k => localStorage.removeItem(k));
+  }
+
   // ---------- state ----------
   const state = { guestId: null, guestSecret: null, guestName: '', preset: null, shots: [], facingMode: 'environment', rollStatus: 'active', demoSeconds: 8 };
 
@@ -372,6 +396,15 @@
     state.guestName = state.guestName.trim();
     localStorage.setItem('wc_guest_name', state.guestName);
     showScreen('screen-preset');
+  });
+
+  const btnResetTesting = document.getElementById('btn-reset-testing');
+  btnResetTesting.addEventListener('click', async () => {
+    const confirmed = window.confirm('Hapus semua foto dan data tamu di perangkat ini, lalu mulai dari ID baru? Tindakan ini tidak bisa dibatalkan.');
+    if (!confirmed) return;
+    btnResetTesting.disabled = true;
+    await resetAllLocalData();
+    window.location.reload();
   });
 
   // ---------- PRESET ----------
