@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kamera Foto Tamu — Dhani & Firda</title>
+<style>
+  :root {
+    --dark: #1C1815;
+    --dark-edge: #12100D;
+    --paper: #EDE6D6;
+    --ink: #14110E;
+    --amber: #E8A33D;
+    --amber-dim: #8C6423;
+    --safety: #C4432E;
+    --paper-dim: #B7AE9A;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--dark-edge);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .phone {
+    width: 100%;
+    max-width: 380px;
+    background: var(--dark);
+    border: 1px solid #2a2520;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .sprocket {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 12px;
+    background: var(--dark-edge);
+  }
+  .sprocket div {
+    width: 8px;
+    height: 8px;
+    margin: 6px 0;
+    border-radius: 2px;
+    background: var(--dark);
+  }
+  .screen { display: none; flex-direction: column; min-height: 560px; padding: 24px; }
+  .screen.active { display: flex; }
+  .eyebrow {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 8px;
+  }
+  h1.title { font-family: Georgia, serif; font-size: 34px; color: var(--paper); margin: 0 0 4px; }
+  .subdate { font-size: 13px; color: var(--paper-dim); margin: 0 0 28px; }
+  .body-copy { font-size: 15px; line-height: 1.6; color: var(--paper); }
+  .spacer { flex: 1; }
+  input[type="text"] {
+    width: 100%;
+    padding: 13px 14px;
+    border-radius: 4px;
+    border: none;
+    box-shadow: 0 0 0 1px var(--paper-dim);
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+  .btn-primary {
+    width: 100%;
+    padding: 14px;
+    border-radius: 4px;
+    border: none;
+    background: var(--amber);
+    color: var(--ink);
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .btn-primary:disabled { background: var(--paper-dim); opacity: 0.5; cursor: not-allowed; }
+  .preset-card {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px solid #332e28;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    margin-bottom: 12px;
+  }
+  .preset-card.active { border-color: var(--amber); background: #2a2520; }
+  .preset-swatch { width: 56px; height: 56px; border-radius: 4px; flex-shrink: 0; }
+  .preset-name { font-weight: 600; font-size: 15px; color: var(--paper); }
+  .preset-mood { font-size: 12px; color: var(--paper-dim); }
+  .preset-check { margin-left: auto; color: var(--amber); font-size: 18px; }
+  .cam-top { display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; }
+  .cam-caption { font-size: 12px; color: var(--paper-dim); }
+  .frame-counter { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 4px; background: var(--dark-edge); border: 1px solid var(--amber-dim); }
+  .rec-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--safety); box-shadow: 0 0 6px var(--safety); }
+  .frame-num { font-family: 'Courier New', monospace; font-size: 14px; letter-spacing: 0.1em; color: var(--amber); text-shadow: 0 0 8px var(--amber-dim); }
+  .viewfinder { position: relative; flex: 1; margin-bottom: 16px; border-radius: 4px; overflow: hidden; background: #000; min-height: 280px; }
+  .viewfinder video, .viewfinder .placeholder { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .placeholder { background: linear-gradient(200deg,#3a3428 0%,#8c6423 40%,#1C1815 100%); }
+  .corner { position: absolute; width: 16px; height: 16px; border-color: var(--paper); opacity: 0.6; }
+  .corner.tl { top: 12px; left: 12px; border-top: 2px solid; border-left: 2px solid; }
+  .corner.tr { top: 12px; right: 12px; border-top: 2px solid; border-right: 2px solid; }
+  .corner.bl { bottom: 12px; left: 12px; border-bottom: 2px solid; border-left: 2px solid; }
+  .corner.br { bottom: 12px; right: 12px; border-bottom: 2px solid; border-right: 2px solid; }
+  .preview-label { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 10px; color: var(--paper-dim); }
+  .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity 0.1s; }
+  .flash.on { opacity: 1; }
+  .cam-controls { display: flex; align-items: center; justify-content: space-between; }
+  .link-btn { background: none; border: none; color: var(--paper-dim); text-decoration: underline; font-size: 12px; cursor: pointer; padding: 0; }
+  .shutter { width: 64px; height: 64px; border-radius: 50%; background: var(--paper); border: 4px solid var(--amber); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .shutter:disabled { border-color: var(--paper-dim); opacity: 0.5; cursor: not-allowed; }
+  .center-screen { align-items: center; justify-content: center; text-align: center; }
+  h2.title2 { font-family: Georgia, serif; font-size: 24px; color: var(--paper); margin: 0 0 8px; }
+  .desc { font-size: 14px; line-height: 1.6; color: var(--paper-dim); margin-bottom: 24px; }
+  .countdown-pill { font-family: 'Courier New', monospace; font-size: 14px; padding: 6px 12px; border-radius: 4px; background: var(--dark-edge); color: var(--amber); border: 1px solid var(--amber-dim); }
+  .reveal-count { font-size: 12px; color: var(--paper-dim); margin-bottom: 16px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex: 1; overflow-y: auto; }
+  .grid-item-photo { width: 100%; aspect-ratio: 3/4; border-radius: 4px; }
+  .grid-item-caption { font-size: 10px; color: var(--paper-dim); margin-top: 4px; }
+  .toast { font-size: 12px; text-align: center; color: var(--amber); margin-bottom: 8px; min-height: 16px; }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="sprocket" id="sprocket-top"></div>
+
+  <!-- JOIN -->
+  <div class="screen active" id="screen-join">
+    <div class="eyebrow">Pernikahan</div>
+    <h1 class="title">Dhani &amp; Firda</h1>
+    <p class="subdate">12 Oktober 2026 — Malang</p>
+    <p class="body-copy">
+      Kamu jadi fotografer hari ini. Masukkan nama, pilih rol film, lalu mulai memotret.
+      Semua foto tersembunyi sampai pesta usai — lalu terungkap sekaligus.
+    </p>
+    <div class="spacer"></div>
+    <input type="text" id="guest-name-input" placeholder="Nama kamu" />
+    <button class="btn-primary" id="btn-join" disabled>Ambil kamera →</button>
+  </div>
+
+  <!-- PRESET -->
+  <div class="screen" id="screen-preset">
+    <div class="eyebrow">Pilih rol film</div>
+    <p class="desc" style="margin-bottom:20px;">Satu rol untuk seluruh album, biar semua foto senada.</p>
+    <div id="preset-list" style="flex:1;"></div>
+    <button class="btn-primary" id="btn-preset" disabled>Pasang rol ini →</button>
+  </div>
+
+  <!-- CAMERA -->
+  <div class="screen" id="screen-camera">
+    <div class="cam-top">
+      <span class="cam-caption" id="cam-caption"></span>
+      <div class="frame-counter"><div class="rec-dot"></div><span class="frame-num" id="frame-num">10/10</span></div>
+    </div>
+    <div class="viewfinder" id="viewfinder">
+      <div class="placeholder" id="cam-placeholder"></div>
+      <video id="cam-video" muted playsinline style="display:none; transform: scaleX(-1);"></video>
+      <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+      <div class="preview-label" id="preview-label">mode pratinjau</div>
+      <div class="flash" id="flash"></div>
+    </div>
+    <div class="cam-controls">
+      <button class="link-btn" id="btn-finish-early">Selesai lebih awal</button>
+      <button class="shutter" id="btn-shutter">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#14110E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+          <circle cx="12" cy="13" r="3"></circle>
+        </svg>
+      </button>
+      <div style="width:60px;"></div>
+    </div>
+  </div>
+
+  <!-- DONE -->
+  <div class="screen center-screen" id="screen-done">
+    <div style="color: var(--amber); font-size: 28px; margin-bottom: 12px;">✦</div>
+    <h2 class="title2">Film kamu sudah habis</h2>
+    <p class="desc" id="done-desc"></p>
+    <div class="countdown-pill" id="countdown-pill">Terungkap dalam 0:08 (demo)</div>
+  </div>
+
+  <!-- REVEAL -->
+  <div class="screen" id="screen-reveal">
+    <div class="eyebrow">Album terungkap</div>
+    <h2 class="title2">Dhani &amp; Firda</h2>
+    <p class="reveal-count" id="reveal-count"></p>
+    <div class="grid" id="reveal-grid"></div>
+    <div style="margin-top:16px;">
+      <div class="toast" id="toast"></div>
+      <button class="btn-primary" id="btn-download">Unduh album</button>
+    </div>
+  </div>
+
+  <div class="sprocket" id="sprocket-bottom"></div>
+</div>
+
+<script>
+  // ---------- sprocket holes ----------
+  function buildSprocket(el) {
+    for (let i = 0; i < 14; i++) {
+      const d = document.createElement('div');
+      el.appendChild(d);
+    }
+  }
+  buildSprocket(document.getElementById('sprocket-top'));
+  buildSprocket(document.getElementById('sprocket-bottom'));
+
+  // ---------- data ----------
+  const PRESETS = [
+    { id: 'kodak', name: 'Kodak Gold 200', mood: 'Hangat, sedikit nostalgia',
+      filter: 'sepia(0.22) saturate(1.45) contrast(1.08) brightness(1.05)',
+      swatch: 'linear-gradient(135deg,#e8a33d 0%,#c4432e 45%,#4a3728 100%)' },
+    { id: 'fuji', name: 'Fujicolor 400', mood: 'Sejuk, hijau natural',
+      filter: 'saturate(1.2) contrast(0.95) hue-rotate(-10deg) brightness(1.02)',
+      swatch: 'linear-gradient(135deg,#4a6b5a 0%,#8fae6b 45%,#1C1815 100%)' },
+    { id: 'cinestill', name: 'CineStill 800T', mood: 'Malam, sinematik, sedikit halo merah',
+      filter: 'contrast(1.18) saturate(1.35) hue-rotate(6deg) brightness(0.94)',
+      swatch: 'linear-gradient(135deg,#2b2540 0%,#c4432e 55%,#12100D 100%)' },
+  ];
+  const MAX_SHOTS = 10;
+  const MOCK_OTHERS = [
+    { guest: 'Rina', gradient: 'linear-gradient(160deg,#e8a33d,#4a3728)' },
+    { guest: 'Bayu', gradient: 'linear-gradient(160deg,#4a6b5a,#1C1815)' },
+    { guest: 'Made', gradient: 'linear-gradient(160deg,#c4432e,#2b2540)' },
+    { guest: 'Sari', gradient: 'linear-gradient(160deg,#8fae6b,#12100D)' },
+  ];
+
+  // ---------- state ----------
+  const state = { guestName: '', preset: null, shots: [], demoSeconds: 8 };
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  // ---------- JOIN ----------
+  const guestInput = document.getElementById('guest-name-input');
+  const btnJoin = document.getElementById('btn-join');
+  guestInput.addEventListener('input', () => {
+    state.guestName = guestInput.value;
+    btnJoin.disabled = guestInput.value.trim().length === 0;
+  });
+  btnJoin.addEventListener('click', () => showScreen('screen-preset'));
+
+  // ---------- PRESET ----------
+  const presetList = document.getElementById('preset-list');
+  const btnPreset = document.getElementById('btn-preset');
+  PRESETS.forEach(p => {
+    const card = document.createElement('button');
+    card.className = 'preset-card';
+    card.innerHTML = `
+      <div class="preset-swatch" style="background:${p.swatch}; filter:${p.filter};"></div>
+      <div>
+        <div class="preset-name">${p.name}</div>
+        <div class="preset-mood">${p.mood}</div>
+      </div>
+      <div class="preset-check" style="display:none;">✓</div>
+    `;
+    card.addEventListener('click', () => {
+      state.preset = p;
+      document.querySelectorAll('.preset-card').forEach(c => {
+        c.classList.remove('active');
+        c.querySelector('.preset-check').style.display = 'none';
+      });
+      card.classList.add('active');
+      card.querySelector('.preset-check').style.display = 'block';
+      btnPreset.disabled = false;
+    });
+    presetList.appendChild(card);
+  });
+  btnPreset.addEventListener('click', () => {
+    showScreen('screen-camera');
+    enterCameraScreen();
+  });
+
+  // ---------- CAMERA ----------
+  const camCaption = document.getElementById('cam-caption');
+  const frameNum = document.getElementById('frame-num');
+  const camVideo = document.getElementById('cam-video');
+  const camPlaceholder = document.getElementById('cam-placeholder');
+  const previewLabel = document.getElementById('preview-label');
+  const flashEl = document.getElementById('flash');
+  const btnShutter = document.getElementById('btn-shutter');
+  const btnFinishEarly = document.getElementById('btn-finish-early');
+  let camStream = null;
+
+  function enterCameraScreen() {
+    camCaption.textContent = state.guestName + ' · ' + state.preset.name;
+    camPlaceholder.style.filter = state.preset.filter;
+    camVideo.style.filter = state.preset.filter;
+    updateFrameCounter();
+
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+        .then(stream => {
+          camStream = stream;
+          camVideo.srcObject = stream;
+          camVideo.play().catch(() => {});
+          camVideo.style.display = 'block';
+          camPlaceholder.style.display = 'none';
+          previewLabel.style.display = 'none';
+        })
+        .catch(() => {
+          camVideo.style.display = 'none';
+          camPlaceholder.style.display = 'block';
+          previewLabel.style.display = 'block';
+        });
+    } else {
+      camVideo.style.display = 'none';
+      camPlaceholder.style.display = 'block';
+      previewLabel.style.display = 'block';
+    }
+  }
+
+  function stopCamera() {
+    if (camStream) {
+      camStream.getTracks().forEach(t => t.stop());
+      camStream = null;
+    }
+  }
+
+  function updateFrameCounter() {
+    const remaining = MAX_SHOTS - state.shots.length;
+    frameNum.textContent = String(remaining).padStart(2, '0') + '/' + MAX_SHOTS;
+    btnShutter.disabled = remaining <= 0;
+    return remaining;
+  }
+
+  let capturing = false;
+  btnShutter.addEventListener('click', () => {
+    const remaining = MAX_SHOTS - state.shots.length;
+    if (capturing || remaining <= 0) return;
+    capturing = true;
+    flashEl.classList.add('on');
+    setTimeout(() => {
+      state.shots.push({ hue: Math.floor(Math.random() * 40) - 20 });
+      flashEl.classList.remove('on');
+      capturing = false;
+      const rem = updateFrameCounter();
+      if (rem <= 0) {
+        setTimeout(() => { stopCamera(); enterDoneScreen(); }, 500);
+      }
+    }, 150);
+  });
+
+  btnFinishEarly.addEventListener('click', () => {
+    if (state.shots.length === 0) return;
+    stopCamera();
+    enterDoneScreen();
+  });
+
+  // ---------- DONE ----------
+  const doneDesc = document.getElementById('done-desc');
+  const countdownPill = document.getElementById('countdown-pill');
+  let countdownTimer = null;
+
+  function enterDoneScreen() {
+    showScreen('screen-done');
+    doneDesc.textContent = state.shots.length + ' foto tersimpan, tersembunyi sampai pesta usai. Itulah keseruannya — semua orang melihatnya sekaligus.';
+    state.demoSeconds = 8;
+    tickCountdown();
+  }
+
+  function tickCountdown() {
+    countdownPill.textContent = 'Terungkap dalam 0:' + String(state.demoSeconds).padStart(2, '0') + ' (demo)';
+    if (state.demoSeconds <= 0) {
+      enterRevealScreen();
+      return;
+    }
+    countdownTimer = setTimeout(() => {
+      state.demoSeconds -= 1;
+      tickCountdown();
+    }, 1000);
+  }
+
+  // ---------- REVEAL ----------
+  const revealCount = document.getElementById('reveal-count');
+  const revealGrid = document.getElementById('reveal-grid');
+  const toast = document.getElementById('toast');
+  const btnDownload = document.getElementById('btn-download');
+
+  function enterRevealScreen() {
+    showScreen('screen-reveal');
+    const myPhotos = state.shots.map(s => ({
+      guest: state.guestName || 'Kamu',
+      gradient: 'linear-gradient(160deg, hsl(' + (40 + s.hue) + ' 60% 45%), #1C1815)',
+    }));
+    const all = myPhotos.concat(MOCK_OTHERS);
+    revealCount.textContent = all.length + ' foto dari semua tamu';
+    revealGrid.innerHTML = '';
+    all.forEach(p => {
+      const item = document.createElement('div');
+      item.innerHTML = `
+        <div class="grid-item-photo" style="background:${p.gradient}; filter:${state.preset.filter};"></div>
+        <div class="grid-item-caption">${p.guest}</div>
+      `;
+      revealGrid.appendChild(item);
+    });
+  }
+
+  btnDownload.addEventListener('click', () => {
+    toast.textContent = 'Unduh akan aktif setelah tersambung ke Supabase';
+  });
+</script>
+</body>
+</html>
