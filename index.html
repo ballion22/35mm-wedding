@@ -156,6 +156,19 @@
   .grid-item-photo { width: 100%; aspect-ratio: 3/4; border-radius: 4px; background-size: cover; background-position: center; }
   .grid-item-caption { font-size: 10px; color: var(--paper-dim); margin-top: 4px; }
   .toast { font-size: 12px; text-align: center; color: var(--amber); margin-bottom: 8px; min-height: 16px; }
+  .test-reset-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 4px;
+    border: 1px dashed var(--paper-dim);
+    background: transparent;
+    color: var(--paper-dim);
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+  }
+  .test-reset-btn:active { color: var(--amber); border-color: var(--amber-dim); }
 </style>
 </head>
 <body>
@@ -175,9 +188,6 @@
     <div class="spacer"></div>
     <input type="text" id="guest-name-input" placeholder="Nama kamu" />
     <button class="btn-primary" id="btn-join" disabled>Ambil kamera →</button>
-    <div style="text-align:center; margin-top:14px;">
-      <button class="link-btn" id="btn-reset-testing">Reset data pengujian (mulai dari ID baru)</button>
-    </div>
   </div>
 
   <!-- PRESET -->
@@ -250,6 +260,7 @@
     <div style="margin-top:16px;">
       <div class="toast" id="toast"></div>
       <button class="btn-primary" id="btn-download">Unduh album</button>
+      <button class="test-reset-btn" id="btn-reset-test">↺ Mode uji · mulai ulang dengan ID baru</button>
     </div>
   </div>
 
@@ -396,15 +407,6 @@
     state.guestName = state.guestName.trim();
     localStorage.setItem('wc_guest_name', state.guestName);
     showScreen('screen-preset');
-  });
-
-  const btnResetTesting = document.getElementById('btn-reset-testing');
-  btnResetTesting.addEventListener('click', async () => {
-    const confirmed = window.confirm('Hapus semua foto dan data tamu di perangkat ini, lalu mulai dari ID baru? Tindakan ini tidak bisa dibatalkan.');
-    if (!confirmed) return;
-    btnResetTesting.disabled = true;
-    await resetAllLocalData();
-    window.location.reload();
   });
 
   // ---------- PRESET ----------
@@ -729,6 +731,19 @@
 
   btnDownload.addEventListener('click', () => {
     toast.textContent = 'Unduh akan aktif setelah tersambung ke Supabase';
+  });
+
+  // ---------- TEST-ONLY: reset local data and start over as a new guest ----------
+  const btnResetTest = document.getElementById('btn-reset-test');
+  btnResetTest.addEventListener('click', async () => {
+    const confirmed = window.confirm('Mode uji: ini akan menghapus semua foto dan data tamu di perangkat ini, lalu memulai dari awal dengan ID baru. Lanjutkan?');
+    if (!confirmed) return;
+    btnResetTest.disabled = true;
+    if (countdownTimer) { clearTimeout(countdownTimer); countdownTimer = null; }
+    stopCamera();
+    state.shots.forEach(s => { try { URL.revokeObjectURL(s.url); } catch (e) {} });
+    await resetAllLocalData();
+    window.location.reload();
   });
 
   // ---------- INIT ----------
