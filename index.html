@@ -342,9 +342,24 @@
   // deployed, CDN blocked), we fall back to null and the app keeps working
   // exactly as it did in Phase 1 — nothing here is allowed to block the
   // camera, capture, or local roll.
-  const supabaseClient = (window.supabase && window.WEDDING_CONFIG && window.WEDDING_CONFIG.supabaseUrl)
-    ? window.supabase.createClient(window.WEDDING_CONFIG.supabaseUrl, window.WEDDING_CONFIG.supabaseAnonKey)
-    : null;
+  function createSupabaseClientSafely() {
+    const cfg = window.WEDDING_CONFIG;
+    const hasLib = !!(window.supabase && typeof window.supabase.createClient === 'function');
+    const hasConfig = !!(cfg && typeof cfg.supabaseUrl === 'string' && cfg.supabaseUrl &&
+      typeof cfg.supabaseAnonKey === 'string' && cfg.supabaseAnonKey);
+    if (!hasLib || !hasConfig) return null;
+    // Guard against any other reason createClient might throw (malformed URL,
+    // library version mismatch, etc.) — this must never be able to break the
+    // rest of the app's initialization, since everything below this point
+    // (event listeners, camera, roll) has to run regardless of Supabase state.
+    try {
+      return window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+    } catch (e) {
+      console.error('Supabase client init failed:', e);
+      return null;
+    }
+  }
+  const supabaseClient = createSupabaseClientSafely();
 
   // Registers or re-verifies this device's guest identity with the backend.
   // Fire-and-forget by design: failure here must never block the guest from
@@ -464,8 +479,11 @@
   btnJoin.addEventListener('click', () => {
     state.guestName = state.guestName.trim();
     localStorage.setItem('wc_guest_name', state.guestName);
-    registerGuestWithServer();
     showScreen('screen-preset');
+    // Best-effort background sync — deliberately called after navigation and
+    // wrapped so nothing about the Supabase call path can ever block or
+    // break moving the guest forward to the next screen.
+    try { registerGuestWithServer(); } catch (e) { console.error(e); }
   });
 
   // ---------- PRESET ----------
@@ -958,17 +976,18 @@
       state.preset = savedPreset;
       state.rollStatus = savedStatus;
 
-      // Covers both normal returning guests (keeps last_seen_at fresh) and
-      // existing Phase 1 testers whose local identity predates Supabase
-      // entirely — this is what gets them registered without any reset.
-      registerGuestWithServer();
-
       if (savedStatus === 'finished') {
         enterDoneScreen();
       } else {
         showScreen('screen-camera');
         enterCameraScreen();
       }
+
+      // Best-effort background sync, after the guest is already back in the
+      // app. Covers both normal returning guests (keeps last_seen_at fresh)
+      // and existing Phase 1 testers whose local identity predates Supabase
+      // entirely — this is what gets them registered without any reset.
+      try { registerGuestWithServer(); } catch (e) { console.error(e); }
     }
   }
   init();
