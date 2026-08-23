@@ -346,14 +346,14 @@
     const cfg = window.WEDDING_CONFIG;
     const hasLib = !!(window.supabase && typeof window.supabase.createClient === 'function');
     const hasConfig = !!(cfg && typeof cfg.supabaseUrl === 'string' && cfg.supabaseUrl &&
-      typeof cfg.supabaseAnonKey === 'string' && cfg.supabaseAnonKey);
+      typeof cfg.supabasePublishableKey === 'string' && cfg.supabasePublishableKey);
     if (!hasLib || !hasConfig) return null;
     // Guard against any other reason createClient might throw (malformed URL,
     // library version mismatch, etc.) — this must never be able to break the
     // rest of the app's initialization, since everything below this point
     // (event listeners, camera, roll) has to run regardless of Supabase state.
     try {
-      return window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+      return window.supabase.createClient(cfg.supabaseUrl, cfg.supabasePublishableKey);
     } catch (e) {
       console.error('Supabase client init failed:', e);
       return null;
