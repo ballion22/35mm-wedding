@@ -487,16 +487,31 @@
     startCamera(state.facingMode);
   }
 
+  // Resolves true once the video element actually has real frame dimensions from
+  // its current srcObject, or false if it never got there within the timeout —
+  // callers must treat false as a failure, not proceed as if it worked.
   function waitForVideoReady(video) {
     return new Promise(resolve => {
-      if (video.readyState >= 1 && video.videoWidth > 0) { resolve(); return; }
-      function onLoaded() {
-        video.removeEventListener('loadedmetadata', onLoaded);
-        resolve();
+      if (video.readyState >= 1 && video.videoWidth > 0) { resolve(true); return; }
+      let settled = false;
+      function onReady() {
+        if (settled) return;
+        settled = true;
+        video.removeEventListener('loadedmetadata', onReady);
+        video.removeEventListener('loadeddata', onReady);
+        resolve(true);
       }
-      video.addEventListener('loadedmetadata', onLoaded);
-      // Safety net: some mobile browsers are inconsistent about firing this event promptly.
-      setTimeout(resolve, 1500);
+      video.addEventListener('loadedmetadata', onReady);
+      video.addEventListener('loadeddata', onReady);
+      // Safety net: some mobile browsers are inconsistent about firing these events
+      // promptly. Fall back to checking the actual state rather than assuming success.
+      setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        video.removeEventListener('loadedmetadata', onReady);
+        video.removeEventListener('loadeddata', onReady);
+        resolve(video.videoWidth > 0);
+      }, 1500);
     });
   }
 
@@ -520,64 +535,98 @@
   async function startCamera(preferredFacing) {
     const requestId = ++cameraRequestId;
 
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showCameraUnavailable('Kamera tidak didukung di browser ini.');
-      return;
-    }
-
-    let stream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: preferredFacing } },
-        audio: false
-      });
-    } catch (e) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      } catch (e2) {
-        if (requestId === cameraRequestId) {
-          showCameraUnavailable('Tidak bisa mengakses kamera. Periksa izin kamera di browser.');
-        }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showCameraUnavailable('Kamera tidak didukung di browser ini.');
         return;
       }
+
+      // Fully release the current camera device before requesting a new one.
+      // On iPhone Safari especially, requesting a second camera stream while the
+      // first is still active can hang the request or return a stream that never
+      // produces real video frames — so stop-and-clear has to happen first, even
+      // though it means a brief moment with no live preview during the switch.
+      if (camStream) {
+        await turnOffTorchIfSupported(camStream);
+        camStream.getTracks().forEach(t => t.stop());
+        camStream = null;
+      }
+      camVideo.pause();
+      camVideo.srcObject = null;
+      camVideo.style.display = 'none';
+      // Show the warm placeholder (not a hard black box) during the brief gap.
+      camPlaceholder.style.display = 'block';
+      previewLabel.style.display = 'none';
+
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: preferredFacing } },
+          audio: false
+        });
+      } catch (e) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } catch (e2) {
+          if (requestId === cameraRequestId) {
+            showCameraUnavailable('Tidak bisa mengakses kamera. Periksa izin kamera di browser.');
+          }
+          return;
+        }
+      }
+
+      // A newer flip superseded this request while we were waiting on permission/hardware.
+      if (requestId !== cameraRequestId) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+
+      camStream = stream;
+      const track = stream.getVideoTracks()[0];
+      const settings = (track && track.getSettings) ? track.getSettings() : {};
+      state.facingMode = settings.facingMode || preferredFacing;
+
+      // Torch capability is specific to this track — always re-evaluated fresh,
+      // never assumed to carry over from the camera we just switched away from.
+      const caps = (track && track.getCapabilities) ? track.getCapabilities() : null;
+      state.torchSupported = !!(caps && caps.torch);
+      updateFlashButtonState();
+
+      camVideo.srcObject = camStream;
+      const ready = await waitForVideoReady(camVideo);
+
+      // Could have been superseded by a newer flip while waiting for metadata.
+      if (requestId !== cameraRequestId) return;
+
+      if (!ready) {
+        // The stream never produced usable video — treat it as a failure rather
+        // than leaving a black/frozen box on screen.
+        if (camStream === stream) {
+          stream.getTracks().forEach(t => t.stop());
+          camStream = null;
+        }
+        camVideo.srcObject = null;
+        showCameraUnavailable('Kamera tidak merespons. Coba ganti kamera lagi.');
+        return;
+      }
+
+      camVideo.style.transform = state.facingMode === 'user' ? 'scaleX(-1)' : 'none';
+      try { await camVideo.play(); } catch (e) {}
+      camVideo.style.display = 'block';
+      camPlaceholder.style.display = 'none';
+      previewLabel.style.display = 'none';
+    } catch (err) {
+      // Catch-all: never let an unexpected error strand the UI with a stuck
+      // camera and a permanently-disabled flip button.
+      if (requestId === cameraRequestId) {
+        if (camStream) {
+          try { camStream.getTracks().forEach(t => t.stop()); } catch (e2) {}
+          camStream = null;
+        }
+        camVideo.srcObject = null;
+        showCameraUnavailable('Terjadi masalah saat membuka kamera. Coba lagi.');
+      }
     }
-
-    // If another flip happened while we were waiting for permission/stream, discard this one.
-    if (requestId !== cameraRequestId) {
-      stream.getTracks().forEach(t => t.stop());
-      return;
-    }
-
-    // Only now retire the previous stream — the video element always has a live
-    // stream attached, so there's no gap where it renders blank/black.
-    const previousStream = camStream;
-    camStream = stream;
-    if (previousStream) {
-      await turnOffTorchIfSupported(previousStream);
-      previousStream.getTracks().forEach(t => t.stop());
-    }
-
-    const track = stream.getVideoTracks()[0];
-    const settings = (track && track.getSettings) ? track.getSettings() : {};
-    state.facingMode = settings.facingMode || preferredFacing;
-
-    // Torch capability is specific to this track — always re-evaluate, never assume
-    // it carries over from the camera we just switched away from.
-    const caps = (track && track.getCapabilities) ? track.getCapabilities() : null;
-    state.torchSupported = !!(caps && caps.torch);
-    updateFlashButtonState();
-
-    camVideo.srcObject = camStream;
-    await waitForVideoReady(camVideo);
-
-    // Could have been superseded by a newer flip while waiting for metadata.
-    if (requestId !== cameraRequestId) return;
-
-    camVideo.style.transform = state.facingMode === 'user' ? 'scaleX(-1)' : 'none';
-    try { await camVideo.play(); } catch (e) {}
-    camVideo.style.display = 'block';
-    camPlaceholder.style.display = 'none';
-    previewLabel.style.display = 'none';
   }
 
   function showCameraUnavailable(message) {
@@ -599,10 +648,13 @@
     if (flipping) return;
     flipping = true;
     btnFlip.disabled = true;
-    const next = state.facingMode === 'environment' ? 'user' : 'environment';
-    await startCamera(next);
-    btnFlip.disabled = false;
-    flipping = false;
+    try {
+      const next = state.facingMode === 'environment' ? 'user' : 'environment';
+      await startCamera(next);
+    } finally {
+      btnFlip.disabled = false;
+      flipping = false;
+    }
   });
 
   function updateFlashButtonState() {
