@@ -203,7 +203,7 @@
     </div>
     <div class="viewfinder" id="viewfinder">
       <div class="placeholder" id="cam-placeholder"></div>
-      <video id="cam-video" muted playsinline autoplay style="display:none;"></video>
+      <video id="cam-video" muted playsinline autoplay style="display:none; transform:none;"></video>
       <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
       <div class="preview-label" id="preview-label">mode pratinjau</div>
       <div class="flash" id="flash"></div>
@@ -354,7 +354,7 @@
   }
 
   // ---------- state ----------
-  const state = { guestId: null, guestSecret: null, guestName: '', preset: null, shots: [], facingMode: 'environment', demoSeconds: 8 };
+  const state = { guestId: null, guestSecret: null, guestName: '', preset: null, shots: [], facingMode: 'environment', rollStatus: 'active', demoSeconds: 8 };
 
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -423,37 +423,77 @@
   let camStream = null;
   let capturing = false;
   let flipping = false;
+  let cameraRequestId = 0;
 
   function enterCameraScreen() {
     camCaption.textContent = state.guestName + ' · ' + state.preset.name;
-    camPlaceholder.style.filter = state.preset.filter;
-    camVideo.style.filter = state.preset.filter;
     renderRoll();
     updateFrameCounter();
     startCamera(state.facingMode);
   }
 
+  function waitForVideoReady(video) {
+    return new Promise(resolve => {
+      if (video.readyState >= 1 && video.videoWidth > 0) { resolve(); return; }
+      function onLoaded() {
+        video.removeEventListener('loadedmetadata', onLoaded);
+        resolve();
+      }
+      video.addEventListener('loadedmetadata', onLoaded);
+      // Safety net: some mobile browsers are inconsistent about firing this event promptly.
+      setTimeout(resolve, 1500);
+    });
+  }
+
   async function startCamera(preferredFacing) {
+    const requestId = ++cameraRequestId;
+
+    // Fully detach the previous stream and video content before requesting a new one,
+    // so nothing stale (old frame, old intrinsic size) carries over into the new stream.
     stopCamera();
+    camVideo.style.transform = 'none';
+    camVideo.srcObject = null;
+    try { camVideo.load(); } catch (e) {}
+
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       showCameraUnavailable('Kamera tidak didukung di browser ini.');
       return;
     }
+
+    let stream;
     try {
-      camStream = await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: preferredFacing } },
         audio: false
       });
-      state.facingMode = preferredFacing;
     } catch (e) {
       try {
-        camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       } catch (e2) {
-        showCameraUnavailable('Tidak bisa mengakses kamera. Periksa izin kamera di browser.');
+        if (requestId === cameraRequestId) {
+          showCameraUnavailable('Tidak bisa mengakses kamera. Periksa izin kamera di browser.');
+        }
         return;
       }
     }
+
+    // If another flip happened while we were waiting for permission/stream, discard this one.
+    if (requestId !== cameraRequestId) {
+      stream.getTracks().forEach(t => t.stop());
+      return;
+    }
+
+    camStream = stream;
+    const track = stream.getVideoTracks()[0];
+    const settings = (track && track.getSettings) ? track.getSettings() : {};
+    state.facingMode = settings.facingMode || preferredFacing;
+
     camVideo.srcObject = camStream;
+    await waitForVideoReady(camVideo);
+
+    // Could have been superseded by a newer flip while waiting for metadata.
+    if (requestId !== cameraRequestId) return;
+
     camVideo.style.transform = state.facingMode === 'user' ? 'scaleX(-1)' : 'none';
     try { await camVideo.play(); } catch (e) {}
     camVideo.style.display = 'block';
@@ -550,6 +590,9 @@
   btnFinishEarly.addEventListener('click', () => {
     if (state.shots.length === 0) return;
     stopCamera();
+    state.rollStatus = 'finished';
+    localStorage.setItem('wc_roll_status', 'finished');
+    localStorage.setItem('wc_finished_at', String(Date.now()));
     enterDoneScreen();
   });
 
@@ -567,7 +610,7 @@
       const wrap = document.createElement('div');
       wrap.className = 'roll-thumb-wrap';
       wrap.innerHTML = `
-        <button class="roll-thumb" style="background-image:url(${shot.url}); filter:${state.preset.filter};" data-id="${shot.id}" aria-label="Foto"></button>
+        <button class="roll-thumb" style="background-image:url(${shot.url});" data-id="${shot.id}" aria-label="Foto"></button>
         <div class="roll-confirm" data-id="${shot.id}">
           <span>Hapus?</span>
           <button class="roll-confirm-yes" data-id="${shot.id}">Ya</button>
@@ -608,10 +651,14 @@
   const countdownPill = document.getElementById('countdown-pill');
   let countdownTimer = null;
 
+  const DEMO_REVEAL_SECONDS = 8;
+
   function enterDoneScreen() {
     showScreen('screen-done');
     doneDesc.textContent = state.shots.length + ' foto tersimpan, tersembunyi sampai pesta usai. Itulah keseruannya — semua orang melihatnya sekaligus.';
-    state.demoSeconds = 8;
+    const finishedAt = parseInt(localStorage.getItem('wc_finished_at') || '0', 10);
+    const elapsedSeconds = finishedAt ? Math.floor((Date.now() - finishedAt) / 1000) : 0;
+    state.demoSeconds = Math.max(0, DEMO_REVEAL_SECONDS - elapsedSeconds);
     tickCountdown();
   }
 
@@ -667,12 +714,19 @@
     const savedName = localStorage.getItem('wc_guest_name');
     const savedPresetId = localStorage.getItem('wc_preset_id');
     const savedPreset = savedPresetId ? PRESETS.find(p => p.id === savedPresetId) : null;
+    const savedStatus = localStorage.getItem('wc_roll_status') || 'active';
 
     if (savedName && savedPreset) {
       state.guestName = savedName;
       state.preset = savedPreset;
-      showScreen('screen-camera');
-      enterCameraScreen();
+      state.rollStatus = savedStatus;
+
+      if (savedStatus === 'finished') {
+        enterDoneScreen();
+      } else {
+        showScreen('screen-camera');
+        enterCameraScreen();
+      }
     }
   }
   init();
