@@ -670,10 +670,21 @@
   let capturing = false;
   let flipping = false;
   let cameraRequestId = 0;
+  // True only once the CURRENT stream has confirmed real video dimensions
+  // and playback — never true merely because camStream is non-null. Reset
+  // to false at the start of every camera start/restart/flip/lens switch.
+  let cameraReady = false;
+  // True while a physical lens switch (.5x/2x device change) is in flight,
+  // so a rapid shutter tap during the switch can't slip through even in the
+  // brief window where camStream still points at the old, about-to-be-
+  // replaced stream.
+  let switchingLens = false;
 
   function enterCameraScreen() {
     camCaption.textContent = state.guestName + ' · Kodak Gold 200';
     hideCamStatus();
+    cameraReady = false;
+    switchingLens = false;
     updateFrameCounter();
     startCamera(state.facingMode);
   }
@@ -728,6 +739,13 @@
   async function startCamera(preferredFacing, opts) {
     opts = opts || {};
     const requestId = ++cameraRequestId;
+
+    // Never enabled just because a stream object exists — only once this
+    // exact stream is verified further down. This alone is what stops the
+    // shutter being usable while the previous frame (or none at all) is
+    // still on screen, right after open/flip/lens-switch/album-return.
+    cameraReady = false;
+    updateShutterEnabled();
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -809,6 +827,26 @@
       camVideo.style.display = 'block';
       camPlaceholder.style.display = 'none';
       previewLabel.style.display = 'none';
+
+      // A newer request could have started while we were awaiting play().
+      if (requestId !== cameraRequestId) return;
+
+      // Final, strict readiness check — this is what actually flips the
+      // shutter on, not merely reaching this line of code.
+      const liveTrack = camStream && camStream.getVideoTracks()[0];
+      const trulyReady = camVideo.readyState >= 2 &&
+        camVideo.videoWidth > 0 &&
+        camVideo.videoHeight > 0 &&
+        !!liveTrack &&
+        liveTrack.readyState === 'live';
+
+      cameraReady = trulyReady;
+      switchingLens = false;
+      updateShutterEnabled();
+
+      if (!trulyReady) {
+        showCamStatus('Kamera belum sepenuhnya siap. Coba lagi sebentar.');
+      }
     } catch (err) {
       if (requestId === cameraRequestId) {
         if (camStream) {
@@ -816,6 +854,9 @@
           camStream = null;
         }
         camVideo.srcObject = null;
+        cameraReady = false;
+        switchingLens = false;
+        updateShutterEnabled();
         showCameraUnavailable('Terjadi masalah saat membuka kamera. Coba lagi.');
       }
     }
@@ -829,6 +870,7 @@
   }
 
   async function stopCamera() {
+    cameraReady = false;
     if (camStream) {
       await turnOffTorchIfSupported(camStream);
       camStream.getTracks().forEach(t => t.stop());
@@ -919,10 +961,17 @@
 
   async function setZoomLevel(level) {
     if (!camStream || state.zoomLevel === level) return;
+
+    switchingLens = true;
+    cameraReady = false;
+    updateShutterEnabled();
+
     const track = camStream.getVideoTracks()[0];
+    let delegatedToStartCamera = false;
     try {
       if (level === '1') {
         if (state.zoomMethod === 'device') {
+          delegatedToStartCamera = true;
           await startCamera(state.facingMode);
         } else if (track) {
           try { await track.applyConstraints({ advanced: [{ zoom: 1 }] }); } catch (e) {}
@@ -930,11 +979,13 @@
         state.zoomLevel = '1';
         state.zoomMethod = null;
       } else if (level === '0.5' && state.wideDeviceId) {
+        delegatedToStartCamera = true;
         await startCamera(state.facingMode, { deviceId: state.wideDeviceId });
         state.zoomLevel = '0.5';
         state.zoomMethod = 'device';
       } else if (level === '2') {
         if (state.teleDeviceId) {
+          delegatedToStartCamera = true;
           await startCamera(state.facingMode, { deviceId: state.teleDeviceId });
           state.zoomLevel = '2';
           state.zoomMethod = 'device';
@@ -946,11 +997,23 @@
       }
     } catch (e) {
       // A failed device switch already leaves startCamera's own error
-      // handling in charge of the viewfinder; just don't let our zoom
-      // bookkeeping drift out of sync with reality.
+      // handling in charge of the viewfinder and cameraReady; just don't
+      // let our zoom bookkeeping drift out of sync with reality.
       console.error('zoom switch failed:', e);
       state.zoomLevel = '1';
       state.zoomMethod = null;
+    } finally {
+      if (!delegatedToStartCamera) {
+        // No stream teardown happened here — applyConstraints() adjusts the
+        // existing, already-verified-ready stream in place, so it's still
+        // genuinely producing frames the whole time.
+        switchingLens = false;
+        cameraReady = !!camStream;
+        updateShutterEnabled();
+      }
+      // If delegatedToStartCamera is true, startCamera() already set
+      // cameraReady/switchingLens/updateShutterEnabled based on the real
+      // outcome of that specific stream — nothing further to do here.
     }
     updateZoomControls();
   }
@@ -959,10 +1022,15 @@
   zoom1xBtn.addEventListener('click', () => setZoomLevel('1'));
   zoomTeleBtn.addEventListener('click', () => setZoomLevel('2'));
 
+  function updateShutterEnabled() {
+    const remaining = Math.max(0, FRAME_LIMIT - state.usedCount);
+    btnShutter.disabled = !cameraReady || switchingLens || capturing || remaining <= 0;
+  }
+
   function updateFrameCounter() {
     const remaining = Math.max(0, FRAME_LIMIT - state.usedCount);
     frameNum.textContent = remaining + '/' + FRAME_LIMIT + ' tersisa';
-    btnShutter.disabled = remaining <= 0 || capturing;
+    updateShutterEnabled();
     return remaining;
   }
 
@@ -1015,35 +1083,80 @@
   }
 
   btnShutter.addEventListener('click', async () => {
-    if (capturing || !camStream || state.usedCount >= FRAME_LIMIT) return;
+    const remaining = Math.max(0, FRAME_LIMIT - state.usedCount);
+    if (capturing || switchingLens || remaining <= 0) return;
+
+    const liveTrack = camStream && camStream.getVideoTracks()[0];
+    const genuinelyReady = cameraReady &&
+      !!camStream &&
+      camVideo.readyState >= 2 &&
+      camVideo.videoWidth > 0 &&
+      camVideo.videoHeight > 0 &&
+      !!liveTrack &&
+      liveTrack.readyState === 'live';
+
+    if (!genuinelyReady) {
+      // The frame counter/camera-open UI can render a hair before the
+      // stream is truly usable — this is the guest-facing side of that
+      // gap, rather than letting the capture attempt fail outright.
+      showCamStatus('Kamera sedang menyiapkan gambar…');
+      return;
+    }
+
     capturing = true;
-    btnShutter.disabled = true;
+    updateShutterEnabled();
     hideCamStatus();
 
     const isFront = state.facingMode === 'user';
     const wantFlash = state.flashOn;
     const track = camStream.getVideoTracks()[0];
     let torchWasEnabled = false;
+    let succeeded = false;
+    let record = null;
 
     try {
-      if (wantFlash && !isFront && state.torchSupported && track) {
-        try {
-          await track.applyConstraints({ advanced: [{ torch: true }] });
-          torchWasEnabled = true;
-        } catch (e) {
-          torchWasEnabled = false;
+      // ---- Flash / torch: best-effort only, never fatal to the capture ----
+      try {
+        if (wantFlash && !isFront && state.torchSupported && track) {
+          try {
+            await track.applyConstraints({ advanced: [{ torch: true }] });
+            torchWasEnabled = true;
+          } catch (torchOnErr) {
+            console.error('torch enable failed (continuing without flash):', torchOnErr);
+          }
+          flashEl.classList.add('on');
+          if (torchWasEnabled) await wait(280);
+        } else if (wantFlash && isFront) {
+          flashEl.classList.add('on');
+          await wait(220);
+        } else {
+          flashEl.classList.add('on');
         }
-        flashEl.classList.add('on');
-        if (torchWasEnabled) await wait(280);
-      } else if (wantFlash && isFront) {
-        flashEl.classList.add('on');
-        await wait(220);
-      } else {
-        flashEl.classList.add('on');
+      } catch (flashErr) {
+        console.error('flash sequence failed (continuing without flash):', flashErr);
       }
 
-      const captured = await captureAndDevelop();
-      const record = {
+      // ---- Capture + Kodak development ----
+      let captured;
+      try {
+        captured = await captureAndDevelop();
+      } catch (captureErr) {
+        console.error('capture failed:', {
+          error: captureErr,
+          message: captureErr && captureErr.message,
+          cameraReady,
+          readyState: camVideo.readyState,
+          videoWidth: camVideo.videoWidth,
+          videoHeight: camVideo.videoHeight,
+          hasStream: !!camStream,
+          trackReadyState: liveTrack && liveTrack.readyState,
+          trackSettings: (liveTrack && liveTrack.getSettings) ? liveTrack.getSettings() : null
+        });
+        showCamStatus('Kamera belum siap, coba lagi.');
+        return;
+      }
+
+      record = {
         id: crypto.randomUUID(),
         guestId: state.guestId,
         seq: getNextSeq(),
@@ -1057,31 +1170,40 @@
         capturedAt: Date.now(),
         syncState: 'local'
       };
-      await idbPut(record);
+
+      // ---- Local save (IndexedDB) ----
+      try {
+        await idbPut(record);
+      } catch (saveErr) {
+        console.error('local IndexedDB save failed:', saveErr, { photoId: record.id });
+        showCamStatus('Gagal menyimpan foto secara lokal, coba lagi.');
+        record = null;
+        return;
+      }
+
       const developedUrl = URL.createObjectURL(captured.developedBlob);
       state.pendingShots.push(Object.assign({}, record, { developedUrl }));
       state.usedCount += 1;
-
+      succeeded = true;
+    } finally {
+      // Torch-off is itself best-effort and must never turn a successful
+      // capture into an error, and must never be skipped after a failed one.
       if (torchWasEnabled && track) {
-        try { await track.applyConstraints({ advanced: [{ torch: false }] }); } catch (e) {}
+        try { await track.applyConstraints({ advanced: [{ torch: false }] }); } catch (torchOffErr) {
+          console.error('torch disable failed (non-fatal):', torchOffErr);
+        }
       }
       setTimeout(() => flashEl.classList.remove('on'), 120);
+      capturing = false;
+      updateShutterEnabled();
+    }
 
+    if (succeeded && record) {
       await stopCamera();
       goToAlbumScreen({ refresh: true });
       // Fire-and-forget: uploading happens in the background and must never
       // hold up returning to the album or block the next shot.
       syncPhotoToServer(record);
-    } catch (err) {
-      console.error('capture failed:', err);
-      showCamStatus('Gagal mengambil foto, coba lagi.');
-      if (torchWasEnabled && track) {
-        try { await track.applyConstraints({ advanced: [{ torch: false }] }); } catch (e) {}
-      }
-      setTimeout(() => flashEl.classList.remove('on'), 120);
-    } finally {
-      capturing = false;
-      btnShutter.disabled = false;
     }
   });
 
