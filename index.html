@@ -425,8 +425,6 @@
   // fullscreen/download/share) behaves identically either way.
   const LOCAL_ONLY_MODE = true;
 
-  // One film for the whole wedding — no more per-guest selection.
-  const KODAK_FILTER = 'sepia(0.28) saturate(1.20) contrast(0.97) brightness(1.07) hue-rotate(-8deg)';
   const KODAK_FILM_ID = 'kodak';
   const FRAME_LIMIT = 15; // lifetime total per guest, not reusable
   const CAPTURE_MAX_DIM = 1280;
@@ -440,14 +438,197 @@
     albumTitleLabel.textContent = LOCAL_ONLY_MODE ? 'Album Sementara' : 'Album Bersama';
   }
 
-  // Kodak development always runs a per-capture check of whether the
-  // browser actually applies ctx.filter (some expose the property but
-  // silently ignore parts of the filter chain) — see captureAndDevelop().
+  // ---------- Kodak Gold 200 development (deterministic pixel pipeline) ----------
+  // This approximates a specific Lightroom Kodak Gold 200 recipe entirely via
+  // getImageData/putImageData pixel math, rather than CanvasRenderingContext2D
+  // .filter. That's a deliberate choice, not just a fallback: filter-chain
+  // support and behavior varies enough across browsers that it was the actual
+  // source of an earlier bug where the "developed" image silently came out
+  // unfiltered. getImageData/putImageData are universally supported wherever
+  // canvas exists at all, so this pipeline behaves identically everywhere —
+  // no native/fallback branching needed.
 
-  // Very light film grain: a small noise texture generated ONCE and cached,
-  // then tiled with a cheap pattern fill on every capture — never a
-  // per-pixel loop over the full-resolution photo, so it stays fast on
-  // mobile regardless of how many photos are taken in a session.
+  function hslToRgb(hDeg, s, l) {
+    const h = hDeg / 360;
+    let r, g, b;
+    if (s === 0) {
+      r = g = b = l;
+    } else {
+      const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+      };
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1 / 3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1 / 3);
+    }
+    return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+  }
+
+  // Standard RGB->hue formula. Returns degrees 0-360, or -1 for near-gray
+  // pixels where hue is meaningless (avoids nudging neutral tones).
+  function hueOf(r, g, b) {
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const d = max - min;
+    if (d < 2) return -1;
+    let h;
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+    return h;
+  }
+
+  // Smooth (not hard-edged) falloff weight for how strongly a hue belongs to
+  // a given color-mix band — avoids visible banding at the edges of a zone.
+  function bandWeight(hue, center, width) {
+    if (hue < 0) return 0;
+    let diff = Math.abs(hue - center);
+    if (diff > 180) diff = 360 - diff;
+    return Math.max(0, 1 - diff / width);
+  }
+
+  // Per-channel tone curve approximating Contrast +20 / Highlights +22 /
+  // Shadows -53 / Whites -20 / Blacks -20. Applied identically to R, G, B.
+  function kodakToneCurve(v) {
+    let t = v / 255;
+
+    // Shadows -53 (scaled down for a natural rather than crushed result)
+    const shadowW = (1 - t) * (1 - t);
+    t -= 0.20 * shadowW;
+    // Blacks -20: extra deepening right at the very bottom only
+    const blackW = Math.max(0, (0.18 - t) / 0.18);
+    t -= 0.10 * blackW * blackW;
+
+    // Highlights +22: lift the bright end
+    const highlightW = t * t;
+    t += 0.09 * highlightW;
+    // Whites -20: gently compress the very top so nothing clips too hard
+    const whiteW = Math.max(0, (t - 0.82) / 0.18);
+    t -= 0.07 * whiteW * whiteW;
+
+    // Contrast +20: classic S-curve around the midpoint
+    t = 0.5 + (t - 0.5) * 1.20;
+
+    if (t < 0) t = 0; else if (t > 1) t = 1;
+    return t * 255;
+  }
+
+  // Static color-grading tint targets — Shadows hue 62/sat 79 (olive-yellow),
+  // Highlights hue 205/sat 26 (soft cool blue). Computed once, reused per pixel.
+  const KODAK_SHADOW_TINT = hslToRgb(62, 0.55, 0.5);
+  const KODAK_HIGHLIGHT_TINT = hslToRgb(205, 0.30, 0.55);
+
+  // The full per-pixel pipeline: tone -> temp/saturation/vibrance ->
+  // shadow/highlight grading -> selective red/orange/yellow tuning ->
+  // midtone micro-contrast ("Texture"). Mutates imageData.data in place;
+  // Uint8ClampedArray clamps every write to 0-255 automatically.
+  function applyKodakPixelPipeline(imageData) {
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      let r = data[i];
+      let g = data[i + 1];
+      let b = data[i + 2];
+
+      // ---- 1. Tone ----
+      r = kodakToneCurve(r);
+      g = kodakToneCurve(g);
+      b = kodakToneCurve(b);
+
+      // ---- 2. Color: Temp +14, Saturation -20, Vibrance +10 ----
+      r += 7; b -= 5; // gentle warm shift
+
+      let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+      r = gray + (r - gray) * 0.80; // saturation -20
+      g = gray + (g - gray) * 0.80;
+      b = gray + (b - gray) * 0.80;
+
+      const spread = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
+      const vibranceMul = 1 + 0.16 * (1 - spread); // vibrance: boosts muted colors more
+      gray = 0.299 * r + 0.587 * g + 0.114 * b;
+      r = gray + (r - gray) * vibranceMul;
+      g = gray + (g - gray) * vibranceMul;
+      b = gray + (b - gray) * vibranceMul;
+
+      // ---- 3. Shadow / highlight color grading ----
+      const l = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      const shadowW = (1 - l) * (1 - l);
+      const highlightW = l * l;
+      r += (KODAK_SHADOW_TINT.r - 128) * shadowW * 0.10 + (KODAK_HIGHLIGHT_TINT.r - 128) * highlightW * 0.08;
+      g += (KODAK_SHADOW_TINT.g - 128) * shadowW * 0.10 + (KODAK_HIGHLIGHT_TINT.g - 128) * highlightW * 0.08;
+      b += (KODAK_SHADOW_TINT.b - 128) * shadowW * 0.10 + (KODAK_HIGHLIGHT_TINT.b - 128) * highlightW * 0.08;
+
+      // ---- 4. Selective red / orange / yellow tuning ----
+      const hue = hueOf(r, g, b);
+      if (hue >= 0) {
+        const redW = bandWeight(hue, 8, 25);
+        const orangeW = bandWeight(hue, 32, 20);
+        const yellowW = bandWeight(hue, 55, 20);
+
+        if (redW > 0) {
+          g += 5 * redW; // Red hue -23 → nudge toward orange
+          gray = 0.299 * r + 0.587 * g + 0.114 * b;
+          const m = 1 + 0.14 * redW; // Red sat +16
+          r = gray + (r - gray) * m; g = gray + (g - gray) * m; b = gray + (b - gray) * m;
+          r += 6 * redW; g += 6 * redW; b += 6 * redW; // Red lum +10
+        }
+        if (orangeW > 0) {
+          gray = 0.299 * r + 0.587 * g + 0.114 * b;
+          const m = 1 - 0.08 * orangeW; // Orange sat -10
+          r = gray + (r - gray) * m; g = gray + (g - gray) * m; b = gray + (b - gray) * m;
+          r += 9 * orangeW; g += 9 * orangeW; b += 9 * orangeW; // Orange lum +20
+        }
+        if (yellowW > 0) {
+          gray = 0.299 * r + 0.587 * g + 0.114 * b;
+          const m = 1 - 0.10 * yellowW; // Yellow sat -12
+          r = gray + (r - gray) * m; g = gray + (g - gray) * m; b = gray + (b - gray) * m;
+          r += 5 * yellowW; g += 5 * yellowW; b += 5 * yellowW; // Yellow lum +10
+        }
+      }
+
+      // ---- 5. Texture +10: mild midtone micro-contrast ----
+      const l2 = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      const midW = Math.max(0, 1 - Math.abs(l2 - 0.5) * 2);
+      if (midW > 0) {
+        const tex = midW * 0.06;
+        r += (r - 128) * tex;
+        g += (g - 128) * tex;
+        b += (b - 128) * tex;
+      }
+
+      data[i] = r;
+      data[i + 1] = g;
+      data[i + 2] = b;
+    }
+  }
+
+  // Vignette -18: soft radial darkening toward the corners, drawn as a single
+  // gradient fill (multiply blend) rather than per-pixel — cheap regardless
+  // of image size.
+  function applyKodakVignette(ctx, w, h) {
+    const cx = w / 2, cy = h / 2;
+    const inner = Math.min(w, h) * 0.35;
+    const outer = Math.max(w, h) * 0.75;
+    const gradient = ctx.createRadialGradient(cx, cy, inner, cx, cy, outer);
+    gradient.addColorStop(0, 'rgba(0,0,0,0)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0.30)');
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
+  // Grain +43/+25+50: noticeably more visible than a bare-minimum texture,
+  // while staying an efficient cached-pattern tile rather than a per-pixel
+  // randomization on every capture.
   let grainPatternCanvas = null;
   function getGrainPattern(ctx) {
     if (!grainPatternCanvas) {
@@ -459,7 +640,7 @@
       const imageData = gctx.createImageData(size, size);
       const data = imageData.data;
       for (let i = 0; i < data.length; i += 4) {
-        const v = 128 + (Math.random() - 0.5) * 40;
+        const v = 128 + (Math.random() - 0.5) * 60;
         data[i] = v;
         data[i + 1] = v;
         data[i + 2] = v;
@@ -1230,94 +1411,36 @@
         devCanvas.width = tw;
         devCanvas.height = th;
         const dctx = devCanvas.getContext('2d');
+        dctx.filter = 'none';
+        dctx.drawImage(originalCanvas, 0, 0);
 
-        // Some browsers expose CanvasRenderingContext2D.filter but don't
-        // reliably apply every operation in the chain — so verify the
-        // assignment actually stuck, per capture, rather than trusting a
-        // one-time feature-presence check.
-        let nativeFilterWorks = false;
+        // The actual Kodak Gold 200 recipe — a deterministic pixel pass, not
+        // a CSS filter. Wrapped so that if pixel access is ever unavailable
+        // for some reason (canvas security restriction, etc.), the guest
+        // still gets a real, undeveloped photo for this one shot rather
+        // than a failed capture.
         try {
-          dctx.filter = KODAK_FILTER;
-          nativeFilterWorks = typeof dctx.filter === 'string' && dctx.filter !== 'none';
-        } catch (e) {
-          nativeFilterWorks = false;
+          const imageData = dctx.getImageData(0, 0, tw, th);
+          applyKodakPixelPipeline(imageData);
+          dctx.putImageData(imageData, 0, 0);
+        } catch (pixelErr) {
+          console.error('Kodak pixel pipeline failed (using undeveloped frame for this shot):', pixelErr);
         }
 
-        if (nativeFilterWorks) {
-          dctx.drawImage(originalCanvas, 0, 0);
-          dctx.filter = 'none'; // reset before the overlay fills below
-        } else {
-          // Pixel-based Kodak-Gold-inspired fallback: a lightweight color
-          // transform applied directly to the pixel data, so the developed
-          // image is never just a copy of the unfiltered original.
-          dctx.filter = 'none';
-          dctx.drawImage(originalCanvas, 0, 0);
-          try {
-            const imageData = dctx.getImageData(0, 0, tw, th);
-            const data = imageData.data;
-            for (let i = 0; i < data.length; i += 4) {
-              let r = data[i];
-              let g = data[i + 1];
-              let b = data[i + 2];
-
-              // gentle exposure lift
-              r *= 1.05;
-              g *= 1.03;
-              b *= 0.98;
-
-              // golden warmth
-              r += 8;
-              g += 4;
-              b -= 5;
-
-              // slightly softer contrast
-              r = (r - 128) * 0.96 + 128;
-              g = (g - 128) * 0.96 + 128;
-              b = (b - 128) * 0.95 + 128;
-
-              // modest film-like saturation
-              const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-              r = gray + (r - gray) * 1.12;
-              g = gray + (g - gray) * 1.08;
-              b = gray + (b - gray) * 1.04;
-
-              data[i] = Math.max(0, Math.min(255, r));
-              data[i + 1] = Math.max(0, Math.min(255, g));
-              data[i + 2] = Math.max(0, Math.min(255, b));
-            }
-            dctx.putImageData(imageData, 0, 0);
-          } catch (pixelErr) {
-            // If even the pixel fallback can't run (e.g. a canvas tainted
-            // by something unexpected), the guest still gets a real photo —
-            // just without the Kodak treatment for this one shot — rather
-            // than a failed capture.
-            console.error('Kodak pixel fallback failed (using undeveloped frame for this shot):', pixelErr);
-          }
-        }
-
-        console.log(nativeFilterWorks ? 'Kodak development: native canvas filter' : 'Kodak development: pixel fallback');
-        console.log('Kodak filter:', KODAK_FILTER);
-
-        // Warm overlay + soft creamy fade — runs on BOTH paths above, not
-        // just the native-filter one. Flat, cheap fillRects, not per-pixel
-        // work, so this adds negligible capture time either way.
+        // Vignette — runs after the color pipeline, before grain.
         try {
-          dctx.filter = 'none';
-          dctx.fillStyle = 'rgba(255, 210, 120, 0.07)';
-          dctx.fillRect(0, 0, tw, th);
-          dctx.fillStyle = 'rgba(255, 245, 220, 0.025)';
-          dctx.fillRect(0, 0, tw, th);
+          applyKodakVignette(dctx, tw, th);
         } catch (e) {
-          console.error('Kodak overlay pass failed (continuing without it):', e);
+          console.error('Kodak vignette pass failed (continuing without it):', e);
         }
 
-        // Very light film grain — also runs on both paths, purely
-        // cosmetic, never allowed to fail the capture itself.
+        // Grain — always last, purely cosmetic, never allowed to fail the
+        // capture itself.
         try {
           const pattern = getGrainPattern(dctx);
           if (pattern) {
             dctx.save();
-            dctx.globalAlpha = 0.035;
+            dctx.globalAlpha = 0.09;
             dctx.globalCompositeOperation = 'overlay';
             dctx.fillStyle = pattern;
             dctx.fillRect(0, 0, tw, th);
