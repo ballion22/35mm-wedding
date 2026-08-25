@@ -428,7 +428,7 @@
   const KODAK_FILM_ID = 'kodak';
   const FRAME_LIMIT = 15; // lifetime total per guest, not reusable
   const CAPTURE_MAX_DIM = 1280;
-  const CAPTURE_QUALITY = 0.85;
+  const CAPTURE_QUALITY = 0.92;
   const STORAGE_BUCKET = 'wedding-photos';
 
   // Photos in local-only mode aren't backed up anywhere yet — make that
@@ -448,26 +448,78 @@
   // canvas exists at all, so this pipeline behaves identically everywhere —
   // no native/fallback branching needed.
 
-// ==========================================================
-// KODAK PORTRA 400 — WEDDING / PHONE PRESET
+/// ==========================================================
+// KODAK PORTRA 400 — WEDDING PRESET V2
 //
-// Character:
-// - soft-medium contrast
-// - warm, natural skin
-// - peach / creamy highlights
-// - slightly lifted shadows
-// - muted greens
-// - soft blues
-// - fine grain
-// - protected white dress / sky highlights
+// Stronger Portra character for phone-camera photos:
+//
+// - warm / peach skin
+// - creamy highlights
+// - slightly lifted blacks
+// - medium-soft contrast
+// - muted yellow + green
+// - cyan-leaning soft blues
+// - subtle cool shadows
+// - fine ISO 400 grain
+//
+// Keep function name applyKodakPixelPipeline()
+// because captureAndDevelop() already calls it.
 // ==========================================================
+
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
 
 
 // ----------------------------------------------------------
-// Utility: HSL -> RGB
+// RGB -> HSL
+// ----------------------------------------------------------
+function rgbToHsl(r, g, b) {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+
+  let h = 0;
+  let s = 0;
+
+  const l = (max + min) / 2;
+  const d = max - min;
+
+  if (d !== 0) {
+    s = l > 0.5
+      ? d / (2 - max - min)
+      : d / (max + min);
+
+    if (max === r) {
+      h = ((g - b) / d + (g < b ? 6 : 0));
+    } else if (max === g) {
+      h = ((b - r) / d + 2);
+    } else {
+      h = ((r - g) / d + 4);
+    }
+
+    h *= 60;
+  }
+
+  return {
+    h,
+    s,
+    l
+  };
+}
+
+
+// ----------------------------------------------------------
+// HSL -> RGB
 // ----------------------------------------------------------
 function hslToRgb(hDeg, s, l) {
-  const h = ((hDeg % 360) + 360) % 360 / 360;
+  let h = ((hDeg % 360) + 360) % 360;
+  h /= 360;
+
   let r, g, b;
 
   if (s === 0) {
@@ -476,9 +528,19 @@ function hslToRgb(hDeg, s, l) {
     const hue2rgb = (p, q, t) => {
       if (t < 0) t += 1;
       if (t > 1) t -= 1;
-      if (t < 1 / 6) return p + (q - p) * 6 * t;
-      if (t < 1 / 2) return q;
-      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+
+      if (t < 1 / 6) {
+        return p + (q - p) * 6 * t;
+      }
+
+      if (t < 1 / 2) {
+        return q;
+      }
+
+      if (t < 2 / 3) {
+        return p + (q - p) * (2 / 3 - t) * 6;
+      }
+
       return p;
     };
 
@@ -487,7 +549,8 @@ function hslToRgb(hDeg, s, l) {
         ? l * (1 + s)
         : l + s - l * s;
 
-    const p = 2 * l - q;
+    const p =
+      2 * l - q;
 
     r = hue2rgb(p, q, h + 1 / 3);
     g = hue2rgb(p, q, h);
@@ -495,54 +558,30 @@ function hslToRgb(hDeg, s, l) {
   }
 
   return {
-    r: Math.round(r * 255),
-    g: Math.round(g * 255),
-    b: Math.round(b * 255)
+    r: r * 255,
+    g: g * 255,
+    b: b * 255
   };
 }
 
 
 // ----------------------------------------------------------
-// Utility: RGB -> hue
-// ----------------------------------------------------------
-function hueOf(r, g, b) {
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const d = max - min;
-
-  if (d < 2) return -1;
-
-  let h;
-
-  if (max === r) {
-    h = ((g - b) / d) % 6;
-  } else if (max === g) {
-    h = (b - r) / d + 2;
-  } else {
-    h = (r - g) / d + 4;
-  }
-
-  h *= 60;
-
-  if (h < 0) h += 360;
-
-  return h;
-}
-
-
-// ----------------------------------------------------------
-// Smooth selective-color weighting
+// Smooth HSL color-band weight
 // ----------------------------------------------------------
 function bandWeight(hue, center, width) {
-  if (hue < 0) return 0;
-
-  let diff = Math.abs(hue - center);
+  let diff =
+    Math.abs(hue - center);
 
   if (diff > 180) {
     diff = 360 - diff;
   }
 
-  const x = Math.max(0, 1 - diff / width);
+  const x =
+    clamp(
+      1 - diff / width,
+      0,
+      1
+    );
 
   return x * x * (3 - 2 * x);
 }
@@ -551,431 +590,583 @@ function bandWeight(hue, center, width) {
 // ==========================================================
 // PORTRA 400 TONE CURVE
 //
-// Key idea:
-// Portra should not have crushed blacks or harsh highlights.
+// Slightly overexposed negative-film feeling.
+// Blacks retained but not crushed.
+// Highlights compressed gradually.
 // ==========================================================
+
 function filmToneCurve(v) {
   let t = v / 255;
 
-  // Slightly raised black floor
-  t = t * 0.965 + 0.022;
+  // Slight film black lift
+  t =
+    t * 0.975 +
+    0.018;
 
-  // Preserve shadow detail
-  const shadowW = Math.pow(1 - t, 2);
-  t += 0.018 * shadowW;
+  // Open shadows slightly
+  const shadow =
+    Math.pow(1 - t, 2);
 
-  // Gentle upper-mid brightness
-  const highlightW = t * t;
-  t += 0.030 * highlightW;
+  t +=
+    shadow * 0.015;
 
-  // Moderate, soft contrast
-  t = 0.5 + (t - 0.5) * 1.015;
+  // Give midtones some density
+  t =
+    0.5 +
+    (t - 0.5) * 1.045;
 
-  // Portra-style highlight rolloff
-  if (t > 0.78) {
-    const excess = t - 0.78;
-    t = 0.78 + excess * 0.78;
+  // Slightly brighten faces / upper mids
+  const upperMid =
+    t * t;
+
+  t +=
+    upperMid * 0.024;
+
+  // Portra highlight shoulder
+  if (t > 0.72) {
+    const excess =
+      t - 0.72;
+
+    t =
+      0.72 +
+      excess * 0.76;
   }
 
-  // Small exposure lift
-  t += 0.008;
+  // Small positive exposure
+  t += 0.012;
 
-  return Math.max(0, Math.min(1, t)) * 255;
+  return (
+    clamp(t, 0, 1) *
+    255
+  );
 }
 
 
 // ==========================================================
-// COLOR GRADING
+// SPLIT TONE
 //
-// Shadows:
-// very subtle cool/neutral tint
-//
-// Highlights:
-// peach / warm cream
+// Cool / cyan-neutral shadows
+// Peach-golden highlights
 // ==========================================================
-const FILM_SHADOW_TINT =
-  hslToRgb(185, 0.055, 0.50);
 
-const FILM_HIGHLIGHT_TINT =
-  hslToRgb(35, 0.13, 0.59);
+const PORTRA_SHADOW_TINT =
+  hslToRgb(
+    190,
+    0.08,
+    0.50
+  );
+
+const PORTRA_HIGHLIGHT_TINT =
+  hslToRgb(
+    32,
+    0.19,
+    0.58
+  );
 
 
 // ==========================================================
-// MAIN PORTRA 400 PIXEL PIPELINE
-//
-// Name kept as applyKodakPixelPipeline()
-// so your existing captureAndDevelop() does not need changing.
+// MAIN PORTRA 400 PIPELINE
 // ==========================================================
+
 function applyKodakPixelPipeline(imageData) {
-  const data = imageData.data;
+  const data =
+    imageData.data;
 
-  for (let i = 0; i < data.length; i += 4) {
+  for (
+    let i = 0;
+    i < data.length;
+    i += 4
+  ) {
 
-    let r = data[i];
-    let g = data[i + 1];
-    let b = data[i + 2];
+    let r =
+      data[i];
+
+    let g =
+      data[i + 1];
+
+    let b =
+      data[i + 2];
 
 
     // ======================================================
-    // 1. TONE
+    // 1. FILMIC TONE
     // ======================================================
-    r = filmToneCurve(r);
-    g = filmToneCurve(g);
-    b = filmToneCurve(b);
+
+    r =
+      filmToneCurve(r);
+
+    g =
+      filmToneCurve(g);
+
+    b =
+      filmToneCurve(b);
 
 
     // ======================================================
-    // 2. WHITE BALANCE
+    // 2. PORTRA WHITE BALANCE
     //
-    // Warm, but much less yellow/orange than Gold 200.
+    // Warm + slight magenta.
+    // Stronger than previous preset,
+    // but avoids Gold-200-style yellow/orange cast.
     // ======================================================
-    r += 6.5;
-    g += 2.0;
-    b -= 3.5;
 
-    // subtle Portra magenta bias
-    r += 1.0;
-    g -= 0.7;
-    b += 0.3;
+    r += 8.0;
+    g += 1.8;
+    b -= 4.5;
+
+    // small magenta bias
+    r += 1.4;
+    g -= 1.0;
+    b += 0.6;
 
 
     // ======================================================
     // 3. GLOBAL SATURATION
     //
-    // Slightly restrained.
+    // Portra is colorful but restrained.
     // ======================================================
+
     let gray =
       0.299 * r +
       0.587 * g +
       0.114 * b;
 
-    const saturation = 0.94;
+    const saturation =
+      0.965;
 
-    r = gray + (r - gray) * saturation;
-    g = gray + (g - gray) * saturation;
-    b = gray + (b - gray) * saturation;
+    r =
+      gray +
+      (r - gray) *
+      saturation;
+
+    g =
+      gray +
+      (g - gray) *
+      saturation;
+
+    b =
+      gray +
+      (b - gray) *
+      saturation;
 
 
     // ======================================================
     // 4. VIBRANCE
     //
-    // Restore weaker colors without over-saturating skin.
+    // Restore subdued colors without destroying skin.
     // ======================================================
+
     const spread =
-      Math.max(
+      clamp(
+        (
+          Math.max(r, g, b) -
+          Math.min(r, g, b)
+        ) / 255,
         0,
-        Math.min(
-          1,
-          (Math.max(r, g, b) - Math.min(r, g, b)) / 255
-        )
+        1
       );
 
     const vibrance =
-      1 + 0.10 * (1 - spread);
+      1 +
+      0.12 *
+      (1 - spread);
 
     gray =
       0.299 * r +
       0.587 * g +
       0.114 * b;
 
-    r = gray + (r - gray) * vibrance;
-    g = gray + (g - gray) * vibrance;
-    b = gray + (b - gray) * vibrance;
+    r =
+      gray +
+      (r - gray) *
+      vibrance;
+
+    g =
+      gray +
+      (g - gray) *
+      vibrance;
+
+    b =
+      gray +
+      (b - gray) *
+      vibrance;
 
 
     // ======================================================
-    // 5. COLOR GRADING
+    // 5. TRUE HSL COLOR MIX
+    //
+    // This is the important improvement over the previous
+    // version. We actually shift hue, not just add RGB.
     // ======================================================
-    const luminance =
-      Math.max(
-        0,
-        Math.min(
-          1,
-          (0.299 * r + 0.587 * g + 0.114 * b) / 255
-        )
+
+    let hsl =
+      rgbToHsl(
+        clamp(r, 0, 255),
+        clamp(g, 0, 255),
+        clamp(b, 0, 255)
       );
+
+
+    const redW =
+      bandWeight(
+        hsl.h,
+        5,
+        30
+      );
+
+    const orangeW =
+      bandWeight(
+        hsl.h,
+        30,
+        28
+      );
+
+    const yellowW =
+      bandWeight(
+        hsl.h,
+        58,
+        28
+      );
+
+    const greenW =
+      bandWeight(
+        hsl.h,
+        120,
+        48
+      );
+
+    const aquaW =
+      bandWeight(
+        hsl.h,
+        185,
+        34
+      );
+
+    const blueW =
+      bandWeight(
+        hsl.h,
+        220,
+        42
+      );
+
+
+    // ------------------------------------------------------
+    // RED
+    //
+    // Slightly coral / salmon.
+    // ------------------------------------------------------
+
+    hsl.h +=
+      2.0 *
+      redW;
+
+    hsl.s -=
+      0.025 *
+      redW;
+
+    hsl.l +=
+      0.012 *
+      redW;
+
+
+    // ------------------------------------------------------
+    // ORANGE / SKIN
+    //
+    // Move slightly toward pink/peach,
+    // reduce orange saturation,
+    // increase skin luminance.
+    // ------------------------------------------------------
+
+    hsl.h -=
+      4.0 *
+      orangeW;
+
+    hsl.s -=
+      0.055 *
+      orangeW;
+
+    hsl.l +=
+      0.035 *
+      orangeW;
+
+
+    // ------------------------------------------------------
+    // YELLOW
+    //
+    // Kodak Portra yellows are warmer and less digital.
+    // ------------------------------------------------------
+
+    hsl.h -=
+      7.0 *
+      yellowW;
+
+    hsl.s -=
+      0.13 *
+      yellowW;
+
+    hsl.l +=
+      0.012 *
+      yellowW;
+
+
+    // ------------------------------------------------------
+    // GREEN
+    //
+    // Shift toward yellow/olive and mute.
+    // ------------------------------------------------------
+
+    hsl.h -=
+      11.0 *
+      greenW;
+
+    hsl.s -=
+      0.20 *
+      greenW;
+
+    hsl.l -=
+      0.008 *
+      greenW;
+
+
+    // ------------------------------------------------------
+    // AQUA
+    // ------------------------------------------------------
+
+    hsl.h -=
+      4.0 *
+      aquaW;
+
+    hsl.s -=
+      0.10 *
+      aquaW;
+
+
+    // ------------------------------------------------------
+    // BLUE
+    //
+    // Slight cyan tendency.
+    // Softer saturation.
+    // ------------------------------------------------------
+
+    hsl.h -=
+      7.0 *
+      blueW;
+
+    hsl.s -=
+      0.14 *
+      blueW;
+
+    hsl.l +=
+      0.008 *
+      blueW;
+
+
+    hsl.s =
+      clamp(
+        hsl.s,
+        0,
+        1
+      );
+
+    hsl.l =
+      clamp(
+        hsl.l,
+        0,
+        1
+      );
+
+
+    const mixed =
+      hslToRgb(
+        hsl.h,
+        hsl.s,
+        hsl.l
+      );
+
+    r = mixed.r;
+    g = mixed.g;
+    b = mixed.b;
+
+
+    // ======================================================
+    // 6. COLOR GRADING
+    // ======================================================
+
+    const luminance =
+      clamp(
+        (
+          0.299 * r +
+          0.587 * g +
+          0.114 * b
+        ) / 255,
+        0,
+        1
+      );
+
 
     const shadowWeight =
-      Math.pow(1 - luminance, 2);
+      Math.pow(
+        1 - luminance,
+        2.2
+      );
 
     const highlightWeight =
-      Math.pow(luminance, 2);
-
-
-    // Very subtle cool-neutral shadows
-    r +=
-      (FILM_SHADOW_TINT.r - 128) *
-      shadowWeight *
-      0.025;
-
-    g +=
-      (FILM_SHADOW_TINT.g - 128) *
-      shadowWeight *
-      0.025;
-
-    b +=
-      (FILM_SHADOW_TINT.b - 128) *
-      shadowWeight *
-      0.025;
-
-
-    // Peach / creamy highlights
-    r +=
-      (FILM_HIGHLIGHT_TINT.r - 128) *
-      highlightWeight *
-      0.055;
-
-    g +=
-      (FILM_HIGHLIGHT_TINT.g - 128) *
-      highlightWeight *
-      0.055;
-
-    b +=
-      (FILM_HIGHLIGHT_TINT.b - 128) *
-      highlightWeight *
-      0.055;
-
-
-    // ======================================================
-    // 6. SELECTIVE COLOR MIX
-    // ======================================================
-    const hue = hueOf(r, g, b);
-
-    if (hue >= 0) {
-
-      const redW =
-        bandWeight(hue, 5, 26);
-
-      const orangeW =
-        bandWeight(hue, 30, 25);
-
-      const yellowW =
-        bandWeight(hue, 55, 25);
-
-      const greenW =
-        bandWeight(hue, 120, 48);
-
-      const aquaW =
-        bandWeight(hue, 185, 30);
-
-      const blueW =
-        bandWeight(hue, 220, 40);
-
-
-      // ----------------------------------------------------
-      // RED
-      //
-      // Softer reds, slightly toward warm salmon.
-      // ----------------------------------------------------
-      if (redW > 0) {
-
-        gray =
-          0.299 * r +
-          0.587 * g +
-          0.114 * b;
-
-        const m =
-          1 - 0.025 * redW;
-
-        r = gray + (r - gray) * m;
-        g = gray + (g - gray) * m;
-        b = gray + (b - gray) * m;
-
-        r += 2.0 * redW;
-        g += 1.3 * redW;
-        b += 1.0 * redW;
-      }
-
-
-      // ----------------------------------------------------
-      // ORANGE / SKIN
-      //
-      // Critical Portra characteristic:
-      // bright, warm skin without becoming orange.
-      // ----------------------------------------------------
-      if (orangeW > 0) {
-
-        gray =
-          0.299 * r +
-          0.587 * g +
-          0.114 * b;
-
-        // slightly reduce orange saturation
-        const m =
-          1 - 0.035 * orangeW;
-
-        r = gray + (r - gray) * m;
-        g = gray + (g - gray) * m;
-        b = gray + (b - gray) * m;
-
-        // brighten skin
-        r += 4.0 * orangeW;
-        g += 3.4 * orangeW;
-        b += 2.7 * orangeW;
-
-        // subtle peach bias
-        r += 0.8 * orangeW;
-        b += 0.25 * orangeW;
-      }
-
-
-      // ----------------------------------------------------
-      // YELLOW
-      //
-      // Suppress strong smartphone yellow.
-      // ----------------------------------------------------
-      if (yellowW > 0) {
-
-        gray =
-          0.299 * r +
-          0.587 * g +
-          0.114 * b;
-
-        const m =
-          1 - 0.10 * yellowW;
-
-        r = gray + (r - gray) * m;
-        g = gray + (g - gray) * m;
-        b = gray + (b - gray) * m;
-
-        r += 1.5 * yellowW;
-        g += 1.8 * yellowW;
-        b += 1.2 * yellowW;
-      }
-
-
-      // ----------------------------------------------------
-      // GREEN
-      //
-      // Portra foliage: softer, slightly muted,
-      // less digital/neon.
-      // ----------------------------------------------------
-      if (greenW > 0) {
-
-        gray =
-          0.299 * r +
-          0.587 * g +
-          0.114 * b;
-
-        const m =
-          1 - 0.18 * greenW;
-
-        r = gray + (r - gray) * m;
-        g = gray + (g - gray) * m;
-        b = gray + (b - gray) * m;
-
-        // slight yellow/olive shift
-        r += 1.0 * greenW;
-        g -= 0.8 * greenW;
-        b -= 1.1 * greenW;
-      }
-
-
-      // ----------------------------------------------------
-      // AQUA
-      // ----------------------------------------------------
-      if (aquaW > 0) {
-
-        gray =
-          0.299 * r +
-          0.587 * g +
-          0.114 * b;
-
-        const m =
-          1 - 0.09 * aquaW;
-
-        r = gray + (r - gray) * m;
-        g = gray + (g - gray) * m;
-        b = gray + (b - gray) * m;
-      }
-
-
-      // ----------------------------------------------------
-      // BLUE
-      //
-      // Softer, pastel sky blues.
-      // ----------------------------------------------------
-      if (blueW > 0) {
-
-        gray =
-          0.299 * r +
-          0.587 * g +
-          0.114 * b;
-
-        const m =
-          1 - 0.12 * blueW;
-
-        r = gray + (r - gray) * m;
-        g = gray + (g - gray) * m;
-        b = gray + (b - gray) * m;
-
-        // tiny cyan tendency
-        g += 0.5 * blueW;
-      }
-    }
-
-
-    // ======================================================
-    // 7. MILD DETAIL / CLARITY
-    //
-    // Keep phone photo reasonably crisp.
-    // Don't over-sharpen skin.
-    // ======================================================
-    const l2 =
-      Math.max(
-        0,
-        Math.min(
-          1,
-          (0.299 * r + 0.587 * g + 0.114 * b) / 255
-        )
+      Math.pow(
+        luminance,
+        2.0
       );
 
-    const midW =
+
+    // cool-neutral shadows
+    r +=
+      (
+        PORTRA_SHADOW_TINT.r -
+        128
+      ) *
+      shadowWeight *
+      0.035;
+
+    g +=
+      (
+        PORTRA_SHADOW_TINT.g -
+        128
+      ) *
+      shadowWeight *
+      0.035;
+
+    b +=
+      (
+        PORTRA_SHADOW_TINT.b -
+        128
+      ) *
+      shadowWeight *
+      0.035;
+
+
+    // creamy peach highlights
+    r +=
+      (
+        PORTRA_HIGHLIGHT_TINT.r -
+        128
+      ) *
+      highlightWeight *
+      0.070;
+
+    g +=
+      (
+        PORTRA_HIGHLIGHT_TINT.g -
+        128
+      ) *
+      highlightWeight *
+      0.070;
+
+    b +=
+      (
+        PORTRA_HIGHLIGHT_TINT.b -
+        128
+      ) *
+      highlightWeight *
+      0.070;
+
+
+    // ======================================================
+    // 7. FILM COLOR DENSITY
+    //
+    // Adds a little body back to midtones,
+    // so image does not look washed out.
+    // ======================================================
+
+    const midWeight =
       Math.max(
         0,
-        1 - Math.abs(l2 - 0.5) * 2
+        1 -
+        Math.abs(
+          luminance -
+          0.5
+        ) *
+        2
       );
 
-    const clarity =
-      midW * 0.014;
+    const density =
+      1 +
+      midWeight *
+      0.018;
 
-    r += (r - 128) * clarity;
-    g += (g - 128) * clarity;
-    b += (b - 128) * clarity;
+    r =
+      128 +
+      (r - 128) *
+      density;
+
+    g =
+      128 +
+      (g - 128) *
+      density;
+
+    b =
+      128 +
+      (b - 128) *
+      density;
 
 
     // ======================================================
-    // 8. PORTRA HIGHLIGHT ROLLOFF
-    //
-    // Especially useful for white dresses,
-    // faces in sunlight and bright skies.
+    // 8. SOFT HIGHLIGHT ROLLOFF
     // ======================================================
-    const rolloff = value => {
 
-      if (value <= 235) {
-        return value;
-      }
+    const rolloff =
+      value => {
 
-      return 235 +
-        (value - 235) * 0.48;
-    };
+        if (
+          value <=
+          232
+        ) {
+          return value;
+        }
 
-    r = rolloff(r);
-    g = rolloff(g);
-    b = rolloff(b);
+        return (
+          232 +
+          (
+            value -
+            232
+          ) *
+          0.50
+        );
+      };
+
+
+    r =
+      rolloff(r);
+
+    g =
+      rolloff(g);
+
+    b =
+      rolloff(b);
 
 
     // ======================================================
     // WRITE PIXEL
     // ======================================================
+
     data[i] =
-      Math.max(0, Math.min(255, r));
+      clamp(
+        r,
+        0,
+        255
+      );
 
     data[i + 1] =
-      Math.max(0, Math.min(255, g));
+      clamp(
+        g,
+        0,
+        255
+      );
 
     data[i + 2] =
-      Math.max(0, Math.min(255, b));
+      clamp(
+        b,
+        0,
+        255
+      );
   }
 }
 
@@ -983,18 +1174,34 @@ function applyKodakPixelPipeline(imageData) {
 // ==========================================================
 // PORTRA VIGNETTE
 //
-// Extremely subtle.
+// Minimal. Portra itself isn't a vignette effect.
 // ==========================================================
-function applyKodakVignette(ctx, w, h) {
 
-  const cx = w / 2;
-  const cy = h / 2;
+function applyKodakVignette(
+  ctx,
+  w,
+  h
+) {
+
+  const cx =
+    w / 2;
+
+  const cy =
+    h / 2;
 
   const inner =
-    Math.min(w, h) * 0.48;
+    Math.min(
+      w,
+      h
+    ) *
+    0.50;
 
   const outer =
-    Math.max(w, h) * 0.84;
+    Math.max(
+      w,
+      h
+    ) *
+    0.85;
 
   const gradient =
     ctx.createRadialGradient(
@@ -1013,7 +1220,7 @@ function applyKodakVignette(ctx, w, h) {
 
   gradient.addColorStop(
     1,
-    'rgba(0,0,0,0.075)'
+    'rgba(0,0,0,0.065)'
   );
 
   ctx.save();
@@ -1021,7 +1228,8 @@ function applyKodakVignette(ctx, w, h) {
   ctx.globalCompositeOperation =
     'multiply';
 
-  ctx.fillStyle = gradient;
+  ctx.fillStyle =
+    gradient;
 
   ctx.fillRect(
     0,
@@ -1037,22 +1245,34 @@ function applyKodakVignette(ctx, w, h) {
 // ==========================================================
 // PORTRA 400 FINE GRAIN
 // ==========================================================
-let grainPatternCanvas = null;
+
+let grainPatternCanvas =
+  null;
 
 function getGrainPattern(ctx) {
 
   if (!grainPatternCanvas) {
 
-    const size = 128;
+    // Larger tile reduces visible repeating pattern.
+    const size =
+      192;
 
     const canvas =
-      document.createElement('canvas');
+      document.createElement(
+        'canvas'
+      );
 
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width =
+      size;
+
+    canvas.height =
+      size;
+
 
     const gctx =
-      canvas.getContext('2d');
+      canvas.getContext(
+        '2d'
+      );
 
     const imageData =
       gctx.createImageData(
@@ -1063,30 +1283,45 @@ function getGrainPattern(ctx) {
     const data =
       imageData.data;
 
+
     for (
       let i = 0;
       i < data.length;
       i += 4
     ) {
 
-      // average several random values:
-      // less harsh than pure digital noise
+      // Gaussian-ish noise:
+      // softer and more film-like than simple random noise.
       const noise =
         (
           Math.random() +
           Math.random() +
+          Math.random() +
           Math.random()
-        ) / 3;
+        ) / 4;
 
       const v =
         128 +
-        (noise - 0.5) * 38;
+        (
+          noise -
+          0.5
+        ) *
+        48;
 
-      data[i] = v;
-      data[i + 1] = v;
-      data[i + 2] = v;
-      data[i + 3] = 255;
+
+      data[i] =
+        v;
+
+      data[i + 1] =
+        v;
+
+      data[i + 2] =
+        v;
+
+      data[i + 3] =
+        255;
     }
+
 
     gctx.putImageData(
       imageData,
@@ -1094,9 +1329,11 @@ function getGrainPattern(ctx) {
       0
     );
 
+
     grainPatternCanvas =
       canvas;
   }
+
 
   return ctx.createPattern(
     grainPatternCanvas,
@@ -1905,7 +2142,7 @@ function getGrainPattern(ctx) {
           const pattern = getGrainPattern(dctx);
           if (pattern) {
             dctx.save();
-            dctx.globalAlpha = 0.035;
+            dctx.globalAlpha = 0.050;
             dctx.globalCompositeOperation = 'overlay';
             dctx.fillStyle = pattern;
             dctx.fillRect(0, 0, tw, th);
