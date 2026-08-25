@@ -61,6 +61,77 @@
   h1.title { font-family: Georgia, serif; font-size: 34px; color: var(--paper); margin: 0 0 4px; }
   .subdate { font-size: 13px; color: var(--paper-dim); margin: 0 0 28px; }
   .body-copy { font-size: 15px; line-height: 1.6; color: var(--paper); }
+
+  /* ---------- front page copy + photo guide ---------- */
+  .intro-copy {
+      margin: 10px 0 18px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--paper);
+      line-height: 1.35;
+    }
+    .intro-copy .intro-lead {
+      display: block;
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 0.005em;
+    }
+    .intro-copy .intro-sub {
+      display: block;
+      margin-top: 3px;
+      font-size: 11px;
+      font-weight: 400;
+      color: #d8cfbd;
+    }
+    .photo-guide {
+      margin: 20px 0;
+      padding: 14px 15px;
+      border: 1px solid var(--amber-dim);
+      border-radius: 4px;
+      background: rgba(232, 163, 61, 0.05);
+      font-family: 'Courier New', monospace;
+      color: var(--paper-dim);
+    }
+    .photo-guide strong {
+      display: block;
+      margin-bottom: 9px;
+      color: var(--amber);
+      font-size: 11px;
+      line-height: 1.4;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .photo-guide ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+    .photo-guide li {
+      margin-bottom: 7px;
+      font-size: 11px;
+      line-height: 1.6;
+    }
+    .photo-guide li:last-child { margin-bottom: 0; }
+    .photo-guide b {
+      color: var(--paper);
+      font-weight: 600;
+    }
+    .join-invite {
+      margin: 18px 0 38px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--paper);
+      font-size: 11px;
+      line-height: 1.35;
+      font-weight: 400;
+      letter-spacing: 0.005em;
+      white-space: normal;
+    }
+    .join-invite .closing-line {
+      display: inline;
+      margin: 0;
+      color: var(--amber);
+      font-size: 11px;
+      font-style: italic;
+      font-weight: 400;
+    }
   .spacer { flex: 1; }
   input[type="text"] {
     width: 100%;
@@ -286,17 +357,32 @@
 
   <!-- JOIN -->
   <div class="screen active" id="screen-join">
-    <div class="eyebrow">The Wedding of</div>
-    <h1 class="title">Dhani &amp; Firda</h1>
-    <p class="subdate">4 Oktober 2026 — Malang</p>
-    <p class="body-copy">
-      Hari ini kamu jadi fotografernya.
-      Tunjukkan POV-mu, tangkap momennya, dan selamat berfoto-foto! 📸
-    </p>
-    <div class="spacer"></div>
-    <input type="text" id="guest-name-input" placeholder="Nama kamu" />
-    <button class="btn-primary" id="btn-join" disabled>Mulai →</button>
-  </div>
+      <div class="eyebrow">The Wedding of</div>
+      <h1 class="title">Dhani &amp; Firda</h1>
+      <p class="subdate">4 Oktober 2026</p>
+      <p class="intro-copy">
+        <span class="intro-lead">Hari ini kamu jadi fotografernya.</span>
+        <span class="intro-sub">Tunjukkan POV-mu dan tangkap momen versimu.</span>
+      </p>
+  
+      <div class="photo-guide">
+        <strong>15 frame. Pilih momennya baik-baik.</strong>
+        <ul>
+          <li>Setiap tamu punya satu roll berisi <b>15 foto</b>.</li>
+          <li>Foto yang sudah diambil <b>tidak bisa dihapus</b>, jadi gunakan setiap frame untuk momen terbaikmu.</li>
+          <li>Semua foto akan masuk ke <b>Album Bersama</b> dan bisa dilihat oleh tamu lainnya.</li>
+        </ul>
+      </div>
+  
+      <div class="spacer"></div>
+  
+      <p class="join-invite">
+        Isi namamu dan ikut abadikan cerita hari ini. <span class="closing-line">Selamat berfoto-foto!</span>
+      </p>
+  
+      <input type="text" id="guest-name-input" placeholder="Nama" />
+      <button class="btn-primary" id="btn-join" disabled>Mulai →</button>
+    </div>
 
   <!-- CAMERA -->
   <div class="screen" id="screen-camera">
