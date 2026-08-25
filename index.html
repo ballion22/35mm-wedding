@@ -85,28 +85,7 @@
     cursor: pointer;
   }
   .btn-primary:disabled { background: var(--paper-dim); opacity: 0.5; cursor: not-allowed; }
-  .cam-top { display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; gap: 8px; }
-  .cam-caption { font-size: 12px; color: var(--paper-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .cam-top-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-  .flip-btn {
-    width: 32px; height: 32px; border-radius: 50%;
-    border: 1px solid var(--amber-dim);
-    background: var(--dark-edge);
-    color: var(--paper);
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; padding: 0; flex-shrink: 0;
-  }
-  .flip-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .flash-btn {
-    width: 60px; height: 44px; border-radius: 22px;
-    border: 1px solid var(--amber-dim);
-    background: var(--dark-edge);
-    color: var(--paper-dim);
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; padding: 0; flex-shrink: 0;
-  }
-  .flash-btn.active { border-color: var(--amber); background: rgba(232,163,61,0.18); color: var(--amber); }
-  .flash-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .cam-top { display: flex; align-items: center; justify-content: center; padding-bottom: 12px; }
   .frame-counter { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 4px; background: var(--dark-edge); border: 1px solid var(--amber-dim); flex-shrink: 0; }
   .rec-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--safety); box-shadow: 0 0 6px var(--safety); }
   .frame-num { font-family: 'Courier New', monospace; font-size: 13px; letter-spacing: 0.05em; color: var(--amber); text-shadow: 0 0 8px var(--amber-dim); white-space: nowrap; }
@@ -135,8 +114,28 @@
   }
   .zoom-btn.active { background: var(--amber); color: var(--ink); font-weight: 600; }
   .cam-status-msg { font-size: 12px; color: var(--safety); text-align: center; margin-bottom: 8px; min-height: 14px; }
-  .cam-controls { display: flex; align-items: center; justify-content: space-between; }
-  .link-btn { background: none; border: none; color: var(--paper-dim); text-decoration: underline; font-size: 12px; cursor: pointer; padding: 0; }
+  .cam-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .latest-thumb {
+    width: 44px; height: 44px; border-radius: 8px; flex-shrink: 0;
+    border: 1px solid var(--amber-dim);
+    background-color: var(--dark-edge);
+    background-size: cover; background-position: center;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--paper-dim);
+    padding: 0; cursor: pointer; overflow: hidden;
+  }
+  .latest-thumb.has-photo .latest-thumb-empty-icon { display: none; }
+  .cam-secondary-controls { display: flex; gap: 8px; flex-shrink: 0; }
+  .secondary-btn {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1px solid var(--amber-dim);
+    background: var(--dark-edge);
+    color: var(--paper);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 0; flex-shrink: 0;
+  }
+  .secondary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .secondary-btn.flash-btn.active { border-color: var(--amber); background: rgba(232,163,61,0.18); color: var(--amber); }
   .shutter { width: 64px; height: 64px; border-radius: 50%; background: var(--paper); border: 4px solid var(--amber); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
   .shutter:disabled { border-color: var(--paper-dim); opacity: 0.5; cursor: not-allowed; }
   h2.title2 { font-family: Georgia, serif; font-size: 24px; color: var(--paper); margin: 0 0 4px; }
@@ -269,18 +268,7 @@
   <!-- CAMERA -->
   <div class="screen" id="screen-camera">
     <div class="cam-top">
-      <span class="cam-caption" id="cam-caption"></span>
-      <div class="cam-top-right">
-        <button class="flip-btn" id="btn-flip" title="Ganti kamera" aria-label="Ganti kamera">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="17 1 21 5 17 9"></polyline>
-            <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
-            <polyline points="7 23 3 19 7 15"></polyline>
-            <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
-          </svg>
-        </button>
-        <div class="frame-counter"><div class="rec-dot"></div><span class="frame-num" id="frame-num">15/15 tersisa</span></div>
-      </div>
+      <div class="frame-counter"><div class="rec-dot"></div><span class="frame-num" id="frame-num">15/15 tersisa</span></div>
     </div>
     <div class="viewfinder" id="viewfinder">
       <div class="placeholder" id="cam-placeholder"></div>
@@ -296,18 +284,34 @@
     </div>
     <div class="cam-status-msg" id="cam-status-msg"></div>
     <div class="cam-controls">
-      <button class="link-btn" id="btn-back-album">‹ Album</button>
+      <button class="latest-thumb" id="btn-latest-thumb" title="Buka album" aria-label="Buka album">
+        <svg class="latest-thumb-empty-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <path d="M21 15l-5-5L5 21"></path>
+        </svg>
+      </button>
       <button class="shutter" id="btn-shutter">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#14110E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
           <circle cx="12" cy="13" r="3"></circle>
         </svg>
       </button>
-      <button class="flash-btn" id="btn-flash" title="Flash" aria-label="Flash">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-        </svg>
-      </button>
+      <div class="cam-secondary-controls">
+        <button class="secondary-btn" id="btn-flip" title="Ganti kamera" aria-label="Ganti kamera">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="17 1 21 5 17 9"></polyline>
+            <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+            <polyline points="7 23 3 19 7 15"></polyline>
+            <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+          </svg>
+        </button>
+        <button class="secondary-btn flash-btn" id="btn-flash" title="Flash" aria-label="Flash">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -523,7 +527,9 @@
       }
 
       state.pendingShots = state.pendingShots.filter(s => s.id !== record.id);
-      try { if (record.developedUrl) URL.revokeObjectURL(record.developedUrl); } catch (e) {}
+      if (record.developedUrl && record.developedUrl !== state.latestPhotoUrl) {
+        try { URL.revokeObjectURL(record.developedUrl); } catch (e) {}
+      }
       try { await idbDelete(record.id); } catch (e) {}
 
       if (document.getElementById('screen-album').classList.contains('active')) {
@@ -639,7 +645,10 @@
     zoomMethod: null,      // 'device' (switched physical camera) | 'constraint' (same stream, track zoom) | null
     wideDeviceId: null,    // set only when a distinct ultra-wide rear camera was detected this session
     teleDeviceId: null,    // set only when a distinct telephoto rear camera was detected this session
-    trackZoomMax: null     // set only when the active track itself exposes a usable zoom range
+    trackZoomMax: null,    // set only when the active track itself exposes a usable zoom range
+    latestPhotoId: null,   // id of the most recently captured photo, for the camera-page thumbnail
+    latestPhotoUrl: null   // its developed-blob URL — reused, never duplicated, and protected from
+                            // premature revocation while it's still on screen (see syncPhotoToServer)
   };
 
   function showScreen(id) {
@@ -665,14 +674,13 @@
   });
 
   // ---------- CAMERA ----------
-  const camCaption = document.getElementById('cam-caption');
   const frameNum = document.getElementById('frame-num');
   const camVideo = document.getElementById('cam-video');
   const camPlaceholder = document.getElementById('cam-placeholder');
   const previewLabel = document.getElementById('preview-label');
   const flashEl = document.getElementById('flash');
   const btnShutter = document.getElementById('btn-shutter');
-  const btnBackAlbum = document.getElementById('btn-back-album');
+  const btnLatestThumb = document.getElementById('btn-latest-thumb');
   const btnFlip = document.getElementById('btn-flip');
   const btnFlash = document.getElementById('btn-flash');
   const zoomRow = document.getElementById('zoom-row');
@@ -695,13 +703,31 @@
   let switchingLens = false;
 
   function enterCameraScreen() {
-    camCaption.textContent = state.guestName + ' · Kodak Gold 200';
     hideCamStatus();
     cameraReady = false;
     switchingLens = false;
     updateFrameCounter();
+    updateLatestThumbnail();
     startCamera(state.facingMode);
   }
+
+  // Reflects state.latestPhotoUrl in the camera page's shortcut button —
+  // the developed Kodak version, never the unfiltered original. Shows a
+  // subtle empty-gallery icon until the guest has taken a first photo.
+  function updateLatestThumbnail() {
+    if (state.latestPhotoUrl) {
+      btnLatestThumb.style.backgroundImage = `url(${state.latestPhotoUrl})`;
+      btnLatestThumb.classList.add('has-photo');
+    } else {
+      btnLatestThumb.style.backgroundImage = 'none';
+      btnLatestThumb.classList.remove('has-photo');
+    }
+  }
+
+  btnLatestThumb.addEventListener('click', async () => {
+    await stopCamera();
+    goToAlbumScreen({ refresh: !LOCAL_ONLY_MODE });
+  });
 
   function showCamStatus(message) {
     camStatusMsg.textContent = message;
@@ -903,11 +929,6 @@
       btnFlip.disabled = false;
       flipping = false;
     }
-  });
-
-  btnBackAlbum.addEventListener('click', async () => {
-    await stopCamera();
-    goToAlbumScreen({ refresh: false });
   });
 
   function updateFlashButtonState() {
@@ -1127,6 +1148,7 @@
     let torchWasEnabled = false;
     let succeeded = false;
     let record = null;
+    let developedUrl = null;
 
     try {
       // ---- Flash / torch: best-effort only, never fatal to the capture ----
@@ -1195,8 +1217,10 @@
         return;
       }
 
-      const developedUrl = URL.createObjectURL(captured.developedBlob);
+      developedUrl = URL.createObjectURL(captured.developedBlob);
       state.pendingShots.push(Object.assign({}, record, { developedUrl }));
+      state.latestPhotoId = record.id;
+      state.latestPhotoUrl = developedUrl;
       state.usedCount += 1;
       succeeded = true;
     } finally {
@@ -1213,11 +1237,14 @@
     }
 
     if (succeeded && record) {
-      await stopCamera();
-      goToAlbumScreen({ refresh: !LOCAL_ONLY_MODE });
+      // Stay on the camera page — update in place and leave the stream
+      // running so another shot can be taken immediately. Only leaving the
+      // camera page (thumbnail tap, flip, lens switch, reset) stops it.
+      updateFrameCounter();
+      updateLatestThumbnail();
       if (!LOCAL_ONLY_MODE) {
         // Fire-and-forget: uploading happens in the background and must
-        // never hold up returning to the album or block the next shot.
+        // never hold up the next shot.
         syncPhotoToServer(record);
       }
     }
@@ -1519,6 +1546,15 @@
     } catch (e) {
       state.pendingShots = [];
     }
+    // idbGetAllForGuest already returns records sorted by capture sequence,
+    // so the last entry is the newest — reuse its already-created blob URL
+    // rather than minting a duplicate one.
+    if (state.pendingShots.length > 0) {
+      const newest = state.pendingShots[state.pendingShots.length - 1];
+      state.latestPhotoId = newest.id;
+      state.latestPhotoUrl = newest.developedUrl;
+    }
+    updateLatestThumbnail();
     // In local-only mode, IndexedDB is the permanent source of truth (not a
     // temporary outbox) — every locally stored photo counts, full stop.
     state.usedCount = LOCAL_ONLY_MODE ? state.pendingShots.length : pendingLocalUnsyncedCount();
