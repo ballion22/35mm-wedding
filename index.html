@@ -1,4 +1,4 @@
-Put your HTML text here<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8" />
@@ -16,6 +16,10 @@ Put your HTML text here<!DOCTYPE html>
     --paper-dim: #B7AE9A;
   }
   * { box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    min-height: 100%;
+  }
   body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -29,6 +33,8 @@ Put your HTML text here<!DOCTYPE html>
   .phone {
     width: 100%;
     max-width: 380px;
+    min-width: 0;
+    flex: 0 1 380px;
     background: var(--dark);
     border: 1px solid #2a2520;
     border-radius: 12px;
@@ -1814,22 +1820,22 @@ function getGrainPattern(ctx) {
       }
 
       const originalCanvas = document.createElement('canvas');
-        originalCanvas.width = tw;
-        originalCanvas.height = th;
+      originalCanvas.width = tw;
+      originalCanvas.height = th;
 
       const originalCtx = originalCanvas.getContext('2d');
 
-        if (state.facingMode === 'user') {
-  // Kamera depan: mirror hasil capture agar sama seperti viewfinder
-  originalCtx.save();
-  originalCtx.translate(tw, 0);
-  originalCtx.scale(-1, 1);
-  originalCtx.drawImage(camVideo, 0, 0, tw, th);
-  originalCtx.restore();
-} else {
-  // Kamera belakang: normal
-  originalCtx.drawImage(camVideo, 0, 0, tw, th);
-}
+      if (state.facingMode === 'user') {
+        // Kamera depan: simpan selfie dengan orientasi yang sama seperti viewfinder.
+        originalCtx.save();
+        originalCtx.translate(tw, 0);
+        originalCtx.scale(-1, 1);
+        originalCtx.drawImage(camVideo, 0, 0, tw, th);
+        originalCtx.restore();
+      } else {
+        // Kamera belakang: simpan tanpa mirror.
+        originalCtx.drawImage(camVideo, 0, 0, tw, th);
+      }
 
       originalCanvas.toBlob(originalBlob => {
         if (!originalBlob) { reject(new Error('original toBlob failed')); return; }
