@@ -567,26 +567,26 @@ function applyKodakPixelPipeline(imageData) {
 
     // ---- 2. White balance / color ----
     // more warmth, less gray
-    r += 11;
-    g += 3;
-    b -= 7;
+    r += 8;
+    g += 2;
+    b -= 5;
 
     // subtle golden/magenta bias
-    r += 2;
-    g -= 1;
-    b -= 1;
+    r += 1;
+    g -= 0.5;
+    b -= 0.5;
 
     let gray = 0.299 * r + 0.587 * g + 0.114 * b;
 
     // saturation: keep richer than previous version
-    const satMul = 0.96;
+    const satMul = 0.90;
     r = gray + (r - gray) * satMul;
     g = gray + (g - gray) * satMul;
     b = gray + (b - gray) * satMul;
 
     // vibrance: stronger
     const spread = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
-    const vibranceMul = 1 + 0.18 * (1 - spread);
+    const vibranceMul = 1 + 0.10 * (1 - spread);
 
     gray = 0.299 * r + 0.587 * g + 0.114 * b;
     r = gray + (r - gray) * vibranceMul;
@@ -634,9 +634,9 @@ function applyKodakPixelPipeline(imageData) {
         g = gray + (g - gray) * m;
         b = gray + (b - gray) * m;
 
-        r += 8 * orangeW;
-        g += 6 * orangeW;
-        b += 4 * orangeW;
+        r += 3 * orangeW;
+        g += 2 * orangeW;
+        b += 1 * orangeW;
       }
 
       if (yellowW > 0) {
