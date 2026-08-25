@@ -508,31 +508,31 @@ function bandWeight(hue, center, width) {
 
 
 // ----------------------------------------------------------
-// Kodak Gold 200 inspired tone curve
-// Warmer, clearer, less gray, slightly punchier
+// Soft beach / pastel film tone curve
+// Inspired by your sample image
 // ----------------------------------------------------------
 function filmToneCurve(v) {
   let t = v / 255;
 
-  // blacks: a small lift so it still feels filmic
-  t = t * 0.95 + 0.03;
+  // Lift blacks a bit for a softer film floor
+  t = t * 0.92 + 0.055;
 
-  // shadows: deepen slightly
+  // Slightly soften shadows
   const shadowW = Math.pow(1 - t, 2);
-  t -= 0.075 * shadowW;
+  t -= 0.035 * shadowW;
 
-  // highlights: brighten
+  // Mild highlight lift
   const highlightW = t * t;
-  t += 0.060 * highlightW;
+  t += 0.035 * highlightW;
 
-  // whites: mild rolloff so highlights stay pleasant
-  const whiteW = Math.max(0, (t - 0.76) / 0.24);
-  t -= 0.020 * whiteW * whiteW;
+  // Soft white rolloff so sky stays creamy
+  const whiteW = Math.max(0, (t - 0.78) / 0.22);
+  t -= 0.02 * whiteW * whiteW;
 
-  // contrast: stronger than previous soft version
-  t = 0.5 + (t - 0.5) * 1.08;
+  // Lower contrast overall
+  t = 0.5 + (t - 0.5) * 0.88;
 
-  // tiny overall brightness lift
+  // Tiny exposure lift
   t += 0.01;
 
   if (t < 0) t = 0;
@@ -542,15 +542,16 @@ function filmToneCurve(v) {
 
 
 // ----------------------------------------------------------
-// Color grading
-// Subtle olive in shadows, warm gold in highlights
+// Soft color grading:
+// shadows slightly cool-green
+// highlights slightly warm-cream
 // ----------------------------------------------------------
-const FILM_SHADOW_TINT = hslToRgb(62, 0.22, 0.48);
-const FILM_HIGHLIGHT_TINT = hslToRgb(42, 0.18, 0.57);
+const FILM_SHADOW_TINT = hslToRgb(165, 0.10, 0.50);
+const FILM_HIGHLIGHT_TINT = hslToRgb(42, 0.10, 0.58);
 
 
 // ----------------------------------------------------------
-// Main development pipeline
+// Main image development pipeline
 // ----------------------------------------------------------
 function applyKodakPixelPipeline(imageData) {
   const data = imageData.data;
@@ -565,28 +566,28 @@ function applyKodakPixelPipeline(imageData) {
     g = filmToneCurve(g);
     b = filmToneCurve(b);
 
-    // ---- 2. White balance / color ----
-    // more warmth, less gray
-    r += 8;
+    // ---- 2. Global warmth / WB ----
+    // Make it slightly warm but still airy
+    r += 6;
     g += 2;
-    b -= 5;
+    b -= 3;
 
-    // subtle golden/magenta bias
+    // Tiny magenta-cream bias
     r += 1;
     g -= 0.5;
-    b -= 0.5;
+    b += 0.5;
 
     let gray = 0.299 * r + 0.587 * g + 0.114 * b;
 
-    // saturation: keep richer than previous version
+    // Slightly desaturate globally
     const satMul = 0.90;
     r = gray + (r - gray) * satMul;
     g = gray + (g - gray) * satMul;
     b = gray + (b - gray) * satMul;
 
-    // vibrance: stronger
+    // Mild vibrance, only for muted colors
     const spread = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
-    const vibranceMul = 1 + 0.10 * (1 - spread);
+    const vibranceMul = 1 + 0.08 * (1 - spread);
 
     gray = 0.299 * r + 0.587 * g + 0.114 * b;
     r = gray + (r - gray) * vibranceMul;
@@ -598,38 +599,37 @@ function applyKodakPixelPipeline(imageData) {
     const shadowW = (1 - l) * (1 - l);
     const highlightW = l * l;
 
-    r += (FILM_SHADOW_TINT.r - 128) * shadowW * 0.050 + (FILM_HIGHLIGHT_TINT.r - 128) * highlightW * 0.060;
-    g += (FILM_SHADOW_TINT.g - 128) * shadowW * 0.050 + (FILM_HIGHLIGHT_TINT.g - 128) * highlightW * 0.060;
-    b += (FILM_SHADOW_TINT.b - 128) * shadowW * 0.050 + (FILM_HIGHLIGHT_TINT.b - 128) * highlightW * 0.060;
+    r += (FILM_SHADOW_TINT.r - 128) * shadowW * 0.035 + (FILM_HIGHLIGHT_TINT.r - 128) * highlightW * 0.040;
+    g += (FILM_SHADOW_TINT.g - 128) * shadowW * 0.035 + (FILM_HIGHLIGHT_TINT.g - 128) * highlightW * 0.040;
+    b += (FILM_SHADOW_TINT.b - 128) * shadowW * 0.035 + (FILM_HIGHLIGHT_TINT.b - 128) * highlightW * 0.040;
 
-    // ---- 4. Color mix ----
+    // ---- 4. Selective color adjustments ----
     const hue = hueOf(r, g, b);
 
     if (hue >= 0) {
       const redW = bandWeight(hue, 8, 24);
       const orangeW = bandWeight(hue, 30, 22);
-      const yellowW = bandWeight(hue, 54, 22);
-      const greenW = bandWeight(hue, 120, 42);
-      const aquaW = bandWeight(hue, 185, 25);
-      const blueW = bandWeight(hue, 220, 35);
+      const yellowW = bandWeight(hue, 55, 24);
+      const greenW = bandWeight(hue, 120, 45);
+      const aquaW = bandWeight(hue, 185, 28);
+      const blueW = bandWeight(hue, 220, 36);
 
       if (redW > 0) {
-        // red: slightly richer and brighter
         gray = 0.299 * r + 0.587 * g + 0.114 * b;
-        const m = 1 + 0.10 * redW;
+        const m = 1 + 0.05 * redW;
         r = gray + (r - gray) * m;
         g = gray + (g - gray) * m;
         b = gray + (b - gray) * m;
 
-        r += 4 * redW;
-        g += 3 * redW;
-        b += 3 * redW;
+        r += 2 * redW;
+        g += 1.5 * redW;
+        b += 1.5 * redW;
       }
 
       if (orangeW > 0) {
-        // orange: key Kodak skin/warmth band
+        // Skin / sand kept warm but restrained
         gray = 0.299 * r + 0.587 * g + 0.114 * b;
-        const m = 1 + 0.08 * orangeW;
+        const m = 1 + 0.03 * orangeW;
         r = gray + (r - gray) * m;
         g = gray + (g - gray) * m;
         b = gray + (b - gray) * m;
@@ -640,57 +640,67 @@ function applyKodakPixelPipeline(imageData) {
       }
 
       if (yellowW > 0) {
-        // yellow: warmer and a little softer
-        r += 3 * yellowW;
-        g += 2 * yellowW;
-
+        // Brighter but softer yellow
         gray = 0.299 * r + 0.587 * g + 0.114 * b;
         const m = 1 - 0.08 * yellowW;
         r = gray + (r - gray) * m;
         g = gray + (g - gray) * m;
         b = gray + (b - gray) * m;
 
-        r += 5 * yellowW;
-        g += 5 * yellowW;
-        b += 3 * yellowW;
+        r += 3 * yellowW;
+        g += 3 * yellowW;
+        b += 2 * yellowW;
       }
 
       if (greenW > 0) {
-        // greens muted, not neon
+        // Mute greens strongly
         gray = 0.299 * r + 0.587 * g + 0.114 * b;
-        const m = 1 - 0.18 * greenW;
+        const m = 1 - 0.24 * greenW;
         r = gray + (r - gray) * m;
         g = gray + (g - gray) * m;
         b = gray + (b - gray) * m;
 
-        r -= 4 * greenW;
-        g -= 3 * greenW;
-        b -= 3 * greenW;
+        r -= 2 * greenW;
+        g -= 2 * greenW;
+        b -= 2 * greenW;
       }
 
       if (aquaW > 0) {
-        g -= 2 * aquaW;
-        b += 1 * aquaW;
+        // Soften aqua water
+        g -= 1.5 * aquaW;
+        b += 0.5 * aquaW;
+
+        gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        const m = 1 - 0.08 * aquaW;
+        r = gray + (r - gray) * m;
+        g = gray + (g - gray) * m;
+        b = gray + (b - gray) * m;
       }
 
       if (blueW > 0) {
-        // skies a bit softer, not overly cold
-        r += 1 * blueW;
-        g -= 1 * blueW;
+        // Desaturate blue sky slightly
+        gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        const m = 1 - 0.10 * blueW;
+        r = gray + (r - gray) * m;
+        g = gray + (g - gray) * m;
+        b = gray + (b - gray) * m;
+
+        r += 0.5 * blueW;
+        g += 0.5 * blueW;
       }
     }
 
-    // ---- 5. Texture / clarity ----
+    // ---- 5. Slight softness / reduced harshness ----
+    // very light clarity only
     const l2 = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     const midW = Math.max(0, 1 - Math.abs(l2 - 0.5) * 2);
+    const tex = midW * 0.008;
 
-    if (midW > 0) {
-      const tex = midW * 0.020;
-      r += (r - 128) * tex;
-      g += (g - 128) * tex;
-      b += (b - 128) * tex;
-    }
+    r += (r - 128) * tex;
+    g += (g - 128) * tex;
+    b += (b - 128) * tex;
 
+    // Clamp
     data[i] = Math.max(0, Math.min(255, r));
     data[i + 1] = Math.max(0, Math.min(255, g));
     data[i + 2] = Math.max(0, Math.min(255, b));
@@ -699,18 +709,17 @@ function applyKodakPixelPipeline(imageData) {
 
 
 // ----------------------------------------------------------
-// Vignette
-// Slightly visible, but not heavy
+// Soft vignette
 // ----------------------------------------------------------
 function applyKodakVignette(ctx, w, h) {
   const cx = w / 2;
   const cy = h / 2;
-  const inner = Math.min(w, h) * 0.40;
+  const inner = Math.min(w, h) * 0.46;
   const outer = Math.max(w, h) * 0.80;
 
   const gradient = ctx.createRadialGradient(cx, cy, inner, cx, cy, outer);
   gradient.addColorStop(0, 'rgba(0,0,0,0)');
-  gradient.addColorStop(1, 'rgba(0,0,0,0.18)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0.10)');
 
   ctx.save();
   ctx.globalCompositeOperation = 'multiply';
@@ -721,8 +730,7 @@ function applyKodakVignette(ctx, w, h) {
 
 
 // ----------------------------------------------------------
-// Grain
-// A little stronger than the soft version
+// Fine soft grain
 // ----------------------------------------------------------
 let grainPatternCanvas = null;
 
@@ -738,7 +746,7 @@ function getGrainPattern(ctx) {
     const data = imageData.data;
 
     for (let i = 0; i < data.length; i += 4) {
-      const v = 128 + (Math.random() - 0.5) * 48;
+      const v = 128 + (Math.random() - 0.5) * 30;
       data[i] = v;
       data[i + 1] = v;
       data[i + 2] = v;
@@ -1540,7 +1548,7 @@ function getGrainPattern(ctx) {
           const pattern = getGrainPattern(dctx);
           if (pattern) {
             dctx.save();
-            dctx.globalAlpha = 0.060;
+            dctx.globalAlpha = 0.030;
             dctx.globalCompositeOperation = 'overlay';
             dctx.fillStyle = pattern;
             dctx.fillRect(0, 0, tw, th);
