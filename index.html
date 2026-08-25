@@ -16,10 +16,6 @@
     --paper-dim: #B7AE9A;
   }
   * { box-sizing: border-box; }
-  html, body {
-    width: 100%;
-    min-height: 100%;
-  }
   body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -33,8 +29,6 @@
   .phone {
     width: 100%;
     max-width: 380px;
-    min-width: 0;
-    flex: 0 1 380px;
     background: var(--dark);
     border: 1px solid #2a2520;
     border-radius: 12px;
@@ -455,11 +449,23 @@
   // no native/fallback branching needed.
 
 // ==========================================================
-// KODAK GOLD 200 — WEDDING OUTDOOR
-// Warm skin, natural greens, protected whites,
-// moderate contrast, crisp detail, subtle grain.
+// KODAK PORTRA 400 — WEDDING / PHONE PRESET
+//
+// Character:
+// - soft-medium contrast
+// - warm, natural skin
+// - peach / creamy highlights
+// - slightly lifted shadows
+// - muted greens
+// - soft blues
+// - fine grain
+// - protected white dress / sky highlights
 // ==========================================================
 
+
+// ----------------------------------------------------------
+// Utility: HSL -> RGB
+// ----------------------------------------------------------
 function hslToRgb(hDeg, s, l) {
   const h = ((hDeg % 360) + 360) % 360 / 360;
   let r, g, b;
@@ -476,7 +482,11 @@ function hslToRgb(hDeg, s, l) {
       return p;
     };
 
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const q =
+      l < 0.5
+        ? l * (1 + s)
+        : l + s - l * s;
+
     const p = 2 * l - q;
 
     r = hue2rgb(p, q, h + 1 / 3);
@@ -491,6 +501,10 @@ function hslToRgb(hDeg, s, l) {
   };
 }
 
+
+// ----------------------------------------------------------
+// Utility: RGB -> hue
+// ----------------------------------------------------------
 function hueOf(r, g, b) {
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
@@ -500,9 +514,13 @@ function hueOf(r, g, b) {
 
   let h;
 
-  if (max === r) h = ((g - b) / d) % 6;
-  else if (max === g) h = (b - r) / d + 2;
-  else h = (r - g) / d + 4;
+  if (max === r) {
+    h = ((g - b) / d) % 6;
+  } else if (max === g) {
+    h = (b - r) / d + 2;
+  } else {
+    h = (r - g) / d + 4;
+  }
 
   h *= 60;
 
@@ -511,12 +529,18 @@ function hueOf(r, g, b) {
   return h;
 }
 
+
+// ----------------------------------------------------------
+// Smooth selective-color weighting
+// ----------------------------------------------------------
 function bandWeight(hue, center, width) {
   if (hue < 0) return 0;
 
   let diff = Math.abs(hue - center);
 
-  if (diff > 180) diff = 360 - diff;
+  if (diff > 180) {
+    diff = 360 - diff;
+  }
 
   const x = Math.max(0, 1 - diff / width);
 
@@ -525,36 +549,35 @@ function bandWeight(hue, center, width) {
 
 
 // ==========================================================
-// TONE CURVE
+// PORTRA 400 TONE CURVE
 //
-// Moderate contrast, slightly rich shadows,
-// bright midtones, protected wedding whites.
+// Key idea:
+// Portra should not have crushed blacks or harsh highlights.
 // ==========================================================
-
 function filmToneCurve(v) {
   let t = v / 255;
 
-  // Slight black lift — film feel without looking faded
-  t = t * 0.97 + 0.018;
+  // Slightly raised black floor
+  t = t * 0.965 + 0.022;
 
-  // Add some depth to shadows
+  // Preserve shadow detail
   const shadowW = Math.pow(1 - t, 2);
-  t -= 0.050 * shadowW;
+  t += 0.018 * shadowW;
 
-  // Lift upper midtones/highlights
+  // Gentle upper-mid brightness
   const highlightW = t * t;
-  t += 0.050 * highlightW;
+  t += 0.030 * highlightW;
 
-  // Protect bright dresses / skies from clipping
-  if (t > 0.82) {
-    const excess = t - 0.82;
-    t = 0.82 + excess * 0.78;
+  // Moderate, soft contrast
+  t = 0.5 + (t - 0.5) * 1.015;
+
+  // Portra-style highlight rolloff
+  if (t > 0.78) {
+    const excess = t - 0.78;
+    t = 0.78 + excess * 0.78;
   }
 
-  // Moderate contrast
-  t = 0.5 + (t - 0.5) * 1.06;
-
-  // Slight exposure lift for outdoor faces
+  // Small exposure lift
   t += 0.008;
 
   return Math.max(0, Math.min(1, t)) * 255;
@@ -564,21 +587,25 @@ function filmToneCurve(v) {
 // ==========================================================
 // COLOR GRADING
 //
-// Slight olive/warm shadows
-// warm creamy highlights
+// Shadows:
+// very subtle cool/neutral tint
+//
+// Highlights:
+// peach / warm cream
 // ==========================================================
-
 const FILM_SHADOW_TINT =
-  hslToRgb(65, 0.12, 0.48);
+  hslToRgb(185, 0.055, 0.50);
 
 const FILM_HIGHLIGHT_TINT =
-  hslToRgb(42, 0.15, 0.58);
+  hslToRgb(35, 0.13, 0.59);
 
 
 // ==========================================================
-// MAIN DEVELOPMENT PIPELINE
+// MAIN PORTRA 400 PIXEL PIPELINE
+//
+// Name kept as applyKodakPixelPipeline()
+// so your existing captureAndDevelop() does not need changing.
 // ==========================================================
-
 function applyKodakPixelPipeline(imageData) {
   const data = imageData.data;
 
@@ -589,53 +616,51 @@ function applyKodakPixelPipeline(imageData) {
     let b = data[i + 2];
 
 
-    // ------------------------------------------------------
-    // 1. Tone
-    // ------------------------------------------------------
-
+    // ======================================================
+    // 1. TONE
+    // ======================================================
     r = filmToneCurve(r);
     g = filmToneCurve(g);
     b = filmToneCurve(b);
 
 
-    // ------------------------------------------------------
-    // 2. Kodak warmth
+    // ======================================================
+    // 2. WHITE BALANCE
     //
-    // Warm enough for outdoor wedding,
-    // but intentionally restrained so skin isn't orange.
-    // ------------------------------------------------------
+    // Warm, but much less yellow/orange than Gold 200.
+    // ======================================================
+    r += 6.5;
+    g += 2.0;
+    b -= 3.5;
 
-    r += 8;
-    g += 3;
-    b -= 5;
-
-    // tiny magenta bias
-    r += 1;
-    g -= 0.5;
+    // subtle Portra magenta bias
+    r += 1.0;
+    g -= 0.7;
+    b += 0.3;
 
 
-    // ------------------------------------------------------
-    // 3. Global saturation
-    // ------------------------------------------------------
-
+    // ======================================================
+    // 3. GLOBAL SATURATION
+    //
+    // Slightly restrained.
+    // ======================================================
     let gray =
       0.299 * r +
       0.587 * g +
       0.114 * b;
 
-    const satMul = 0.96;
+    const saturation = 0.94;
 
-    r = gray + (r - gray) * satMul;
-    g = gray + (g - gray) * satMul;
-    b = gray + (b - gray) * satMul;
+    r = gray + (r - gray) * saturation;
+    g = gray + (g - gray) * saturation;
+    b = gray + (b - gray) * saturation;
 
 
-    // ------------------------------------------------------
-    // 4. Vibrance
+    // ======================================================
+    // 4. VIBRANCE
     //
-    // Recover muted colors without oversaturating skin.
-    // ------------------------------------------------------
-
+    // Restore weaker colors without over-saturating skin.
+    // ======================================================
     const spread =
       Math.max(
         0,
@@ -645,23 +670,22 @@ function applyKodakPixelPipeline(imageData) {
         )
       );
 
-    const vibranceMul =
-      1 + 0.12 * (1 - spread);
+    const vibrance =
+      1 + 0.10 * (1 - spread);
 
     gray =
       0.299 * r +
       0.587 * g +
       0.114 * b;
 
-    r = gray + (r - gray) * vibranceMul;
-    g = gray + (g - gray) * vibranceMul;
-    b = gray + (b - gray) * vibranceMul;
+    r = gray + (r - gray) * vibrance;
+    g = gray + (g - gray) * vibrance;
+    b = gray + (b - gray) * vibrance;
 
 
-    // ------------------------------------------------------
-    // 5. Shadow/highlight grading
-    // ------------------------------------------------------
-
+    // ======================================================
+    // 5. COLOR GRADING
+    // ======================================================
     const luminance =
       Math.max(
         0,
@@ -677,68 +701,72 @@ function applyKodakPixelPipeline(imageData) {
     const highlightWeight =
       Math.pow(luminance, 2);
 
+
+    // Very subtle cool-neutral shadows
     r +=
       (FILM_SHADOW_TINT.r - 128) *
       shadowWeight *
-      0.035;
+      0.025;
 
     g +=
       (FILM_SHADOW_TINT.g - 128) *
       shadowWeight *
-      0.035;
+      0.025;
 
     b +=
       (FILM_SHADOW_TINT.b - 128) *
       shadowWeight *
-      0.035;
+      0.025;
 
+
+    // Peach / creamy highlights
     r +=
       (FILM_HIGHLIGHT_TINT.r - 128) *
       highlightWeight *
-      0.045;
+      0.055;
 
     g +=
       (FILM_HIGHLIGHT_TINT.g - 128) *
       highlightWeight *
-      0.045;
+      0.055;
 
     b +=
       (FILM_HIGHLIGHT_TINT.b - 128) *
       highlightWeight *
-      0.045;
+      0.055;
 
 
-    // ------------------------------------------------------
-    // 6. Selective colors
-    // ------------------------------------------------------
-
+    // ======================================================
+    // 6. SELECTIVE COLOR MIX
+    // ======================================================
     const hue = hueOf(r, g, b);
 
     if (hue >= 0) {
 
       const redW =
-        bandWeight(hue, 7, 25);
+        bandWeight(hue, 5, 26);
 
       const orangeW =
-        bandWeight(hue, 30, 23);
+        bandWeight(hue, 30, 25);
 
       const yellowW =
-        bandWeight(hue, 55, 24);
+        bandWeight(hue, 55, 25);
 
       const greenW =
-        bandWeight(hue, 120, 45);
+        bandWeight(hue, 120, 48);
 
       const aquaW =
-        bandWeight(hue, 185, 28);
+        bandWeight(hue, 185, 30);
 
       const blueW =
-        bandWeight(hue, 220, 38);
+        bandWeight(hue, 220, 40);
 
 
       // ----------------------------------------------------
       // RED
+      //
+      // Softer reds, slightly toward warm salmon.
       // ----------------------------------------------------
-
       if (redW > 0) {
 
         gray =
@@ -747,25 +775,24 @@ function applyKodakPixelPipeline(imageData) {
           0.114 * b;
 
         const m =
-          1 + 0.06 * redW;
+          1 - 0.025 * redW;
 
         r = gray + (r - gray) * m;
         g = gray + (g - gray) * m;
         b = gray + (b - gray) * m;
 
-        r += 2.5 * redW;
-        g += 1.5 * redW;
-        b += 1.5 * redW;
+        r += 2.0 * redW;
+        g += 1.3 * redW;
+        b += 1.0 * redW;
       }
 
 
       // ----------------------------------------------------
-      // ORANGE
+      // ORANGE / SKIN
       //
-      // Important for skin tones.
-      // Keep warm, but avoid orange cast.
+      // Critical Portra characteristic:
+      // bright, warm skin without becoming orange.
       // ----------------------------------------------------
-
       if (orangeW > 0) {
 
         gray =
@@ -773,26 +800,30 @@ function applyKodakPixelPipeline(imageData) {
           0.587 * g +
           0.114 * b;
 
+        // slightly reduce orange saturation
         const m =
-          1 + 0.025 * orangeW;
+          1 - 0.035 * orangeW;
 
         r = gray + (r - gray) * m;
         g = gray + (g - gray) * m;
         b = gray + (b - gray) * m;
 
-        // slight luminance lift on skin
-        r += 3.0 * orangeW;
-        g += 2.5 * orangeW;
-        b += 2.0 * orangeW;
+        // brighten skin
+        r += 4.0 * orangeW;
+        g += 3.4 * orangeW;
+        b += 2.7 * orangeW;
+
+        // subtle peach bias
+        r += 0.8 * orangeW;
+        b += 0.25 * orangeW;
       }
 
 
       // ----------------------------------------------------
       // YELLOW
       //
-      // Useful for grass/sunlight/flowers.
+      // Suppress strong smartphone yellow.
       // ----------------------------------------------------
-
       if (yellowW > 0) {
 
         gray =
@@ -801,25 +832,24 @@ function applyKodakPixelPipeline(imageData) {
           0.114 * b;
 
         const m =
-          1 - 0.05 * yellowW;
+          1 - 0.10 * yellowW;
 
         r = gray + (r - gray) * m;
         g = gray + (g - gray) * m;
         b = gray + (b - gray) * m;
 
-        r += 2.5 * yellowW;
-        g += 2.5 * yellowW;
-        b += 1.5 * yellowW;
+        r += 1.5 * yellowW;
+        g += 1.8 * yellowW;
+        b += 1.2 * yellowW;
       }
 
 
       // ----------------------------------------------------
       // GREEN
       //
-      // Outdoor wedding: mute digital/neon greens,
-      // but preserve natural foliage.
+      // Portra foliage: softer, slightly muted,
+      // less digital/neon.
       // ----------------------------------------------------
-
       if (greenW > 0) {
 
         gray =
@@ -828,23 +858,22 @@ function applyKodakPixelPipeline(imageData) {
           0.114 * b;
 
         const m =
-          1 - 0.15 * greenW;
+          1 - 0.18 * greenW;
 
         r = gray + (r - gray) * m;
         g = gray + (g - gray) * m;
         b = gray + (b - gray) * m;
 
-        // slight olive treatment
+        // slight yellow/olive shift
         r += 1.0 * greenW;
-        g -= 1.5 * greenW;
-        b -= 1.0 * greenW;
+        g -= 0.8 * greenW;
+        b -= 1.1 * greenW;
       }
 
 
       // ----------------------------------------------------
       // AQUA
       // ----------------------------------------------------
-
       if (aquaW > 0) {
 
         gray =
@@ -853,23 +882,19 @@ function applyKodakPixelPipeline(imageData) {
           0.114 * b;
 
         const m =
-          1 - 0.05 * aquaW;
+          1 - 0.09 * aquaW;
 
         r = gray + (r - gray) * m;
         g = gray + (g - gray) * m;
         b = gray + (b - gray) * m;
-
-        g -= 1.0 * aquaW;
-        b += 0.7 * aquaW;
       }
 
 
       // ----------------------------------------------------
       // BLUE
       //
-      // Preserve sky, but avoid smartphone-electric blue.
+      // Softer, pastel sky blues.
       // ----------------------------------------------------
-
       if (blueW > 0) {
 
         gray =
@@ -878,21 +903,24 @@ function applyKodakPixelPipeline(imageData) {
           0.114 * b;
 
         const m =
-          1 - 0.07 * blueW;
+          1 - 0.12 * blueW;
 
         r = gray + (r - gray) * m;
         g = gray + (g - gray) * m;
         b = gray + (b - gray) * m;
 
-        r += 0.7 * blueW;
+        // tiny cyan tendency
+        g += 0.5 * blueW;
       }
     }
 
 
-    // ------------------------------------------------------
-    // 7. Mild clarity
-    // ------------------------------------------------------
-
+    // ======================================================
+    // 7. MILD DETAIL / CLARITY
+    //
+    // Keep phone photo reasonably crisp.
+    // Don't over-sharpen skin.
+    // ======================================================
     const l2 =
       Math.max(
         0,
@@ -909,27 +937,27 @@ function applyKodakPixelPipeline(imageData) {
       );
 
     const clarity =
-      midW * 0.020;
+      midW * 0.014;
 
     r += (r - 128) * clarity;
     g += (g - 128) * clarity;
     b += (b - 128) * clarity;
 
 
-    // ------------------------------------------------------
-    // 8. Highlight protection
+    // ======================================================
+    // 8. PORTRA HIGHLIGHT ROLLOFF
     //
-    // Important for white wedding dresses.
-    // ------------------------------------------------------
-
+    // Especially useful for white dresses,
+    // faces in sunlight and bright skies.
+    // ======================================================
     const rolloff = value => {
 
-      if (value <= 238) {
+      if (value <= 235) {
         return value;
       }
 
-      return 238 +
-        (value - 238) * 0.45;
+      return 235 +
+        (value - 235) * 0.48;
     };
 
     r = rolloff(r);
@@ -937,10 +965,9 @@ function applyKodakPixelPipeline(imageData) {
     b = rolloff(b);
 
 
-    // ------------------------------------------------------
-    // Write
-    // ------------------------------------------------------
-
+    // ======================================================
+    // WRITE PIXEL
+    // ======================================================
     data[i] =
       Math.max(0, Math.min(255, r));
 
@@ -954,22 +981,20 @@ function applyKodakPixelPipeline(imageData) {
 
 
 // ==========================================================
-// VIGNETTE
+// PORTRA VIGNETTE
 //
-// Very subtle because outdoor wedding photos should remain
-// clean and bright.
+// Extremely subtle.
 // ==========================================================
-
 function applyKodakVignette(ctx, w, h) {
 
   const cx = w / 2;
   const cy = h / 2;
 
   const inner =
-    Math.min(w, h) * 0.46;
+    Math.min(w, h) * 0.48;
 
   const outer =
-    Math.max(w, h) * 0.82;
+    Math.max(w, h) * 0.84;
 
   const gradient =
     ctx.createRadialGradient(
@@ -988,7 +1013,7 @@ function applyKodakVignette(ctx, w, h) {
 
   gradient.addColorStop(
     1,
-    'rgba(0,0,0,0.10)'
+    'rgba(0,0,0,0.075)'
   );
 
   ctx.save();
@@ -996,8 +1021,7 @@ function applyKodakVignette(ctx, w, h) {
   ctx.globalCompositeOperation =
     'multiply';
 
-  ctx.fillStyle =
-    gradient;
+  ctx.fillStyle = gradient;
 
   ctx.fillRect(
     0,
@@ -1011,16 +1035,15 @@ function applyKodakVignette(ctx, w, h) {
 
 
 // ==========================================================
-// FINE FILM GRAIN
+// PORTRA 400 FINE GRAIN
 // ==========================================================
-
 let grainPatternCanvas = null;
 
 function getGrainPattern(ctx) {
 
   if (!grainPatternCanvas) {
 
-    const size = 96;
+    const size = 128;
 
     const canvas =
       document.createElement('canvas');
@@ -1046,9 +1069,18 @@ function getGrainPattern(ctx) {
       i += 4
     ) {
 
+      // average several random values:
+      // less harsh than pure digital noise
+      const noise =
+        (
+          Math.random() +
+          Math.random() +
+          Math.random()
+        ) / 3;
+
       const v =
         128 +
-        (Math.random() - 0.5) * 30;
+        (noise - 0.5) * 38;
 
       data[i] = v;
       data[i + 1] = v;
@@ -1820,22 +1852,22 @@ function getGrainPattern(ctx) {
       }
 
       const originalCanvas = document.createElement('canvas');
-      originalCanvas.width = tw;
-      originalCanvas.height = th;
+        originalCanvas.width = tw;
+        originalCanvas.height = th;
 
       const originalCtx = originalCanvas.getContext('2d');
 
-      if (state.facingMode === 'user') {
-        // Kamera depan: simpan selfie dengan orientasi yang sama seperti viewfinder.
-        originalCtx.save();
-        originalCtx.translate(tw, 0);
-        originalCtx.scale(-1, 1);
-        originalCtx.drawImage(camVideo, 0, 0, tw, th);
-        originalCtx.restore();
-      } else {
-        // Kamera belakang: simpan tanpa mirror.
-        originalCtx.drawImage(camVideo, 0, 0, tw, th);
-      }
+        if (state.facingMode === 'user') {
+  // Kamera depan: mirror hasil capture agar sama seperti viewfinder
+  originalCtx.save();
+  originalCtx.translate(tw, 0);
+  originalCtx.scale(-1, 1);
+  originalCtx.drawImage(camVideo, 0, 0, tw, th);
+  originalCtx.restore();
+} else {
+  // Kamera belakang: normal
+  originalCtx.drawImage(camVideo, 0, 0, tw, th);
+}
 
       originalCanvas.toBlob(originalBlob => {
         if (!originalBlob) { reject(new Error('original toBlob failed')); return; }
@@ -1873,7 +1905,7 @@ function getGrainPattern(ctx) {
           const pattern = getGrainPattern(dctx);
           if (pattern) {
             dctx.save();
-            dctx.globalAlpha = 0.045;
+            dctx.globalAlpha = 0.035;
             dctx.globalCompositeOperation = 'overlay';
             dctx.fillStyle = pattern;
             dctx.fillRect(0, 0, tw, th);
