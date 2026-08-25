@@ -469,7 +469,7 @@
     return p;
   }
 
-  function rgbToHsl(r, g, b) {
+  function rgbToHslFast(r, g, b) {
     r /= 255; g /= 255; b /= 255;
     const max = Math.max(r, g, b), min = Math.min(r, g, b);
     let h = 0, s = 0;
@@ -485,7 +485,7 @@
     return { h, s, l };
   }
 
-  function hslToRgb(hDeg, s, l) {
+  function hslToRgbFast(hDeg, s, l) {
     let h = ((hDeg % 360) + 360) % 360;
     h /= 360;
     let r, g, b;
@@ -510,43 +510,55 @@
     return x * x * (3 - 2 * x);
   }
 
+  // ~-0.40 EV, applied as a real multiplicative exposure reduction — this is
+  // one deliberate stage within a larger curve, not "the whole film look
+  // from one aggressive multiply." It darkens the entire range including
+  // near-whites; the highlight shoulder below is what then pulls bright
+  // values back up toward "controlled but not muddy" rather than gray.
+  const EXPOSURE_EV = -0.40;
+  const EXPOSURE_MULT = Math.pow(2, EXPOSURE_EV);
+
+  // Smooth 3-zone-equivalent highlight shoulder via a single eased power
+  // curve (no discontinuity at the zone boundaries): 0-75% passes through
+  // unchanged, 75-90% compresses gradually, 90-100% compresses hard —
+  // ceiling lands around 235/255 rather than clamping at a hard threshold.
+  function highlightShoulder(t) {
+    if (t <= 0.75) return t;
+    const x = Math.min(1, (t - 0.75) / 0.25);
+    const eased = 1 - Math.pow(1 - x, 2.2);
+    return 0.75 + eased * 0.17; // ceiling ≈ 0.92 → ≈235/255
+  }
+
   // ==========================================================
-  // PORTRA 400 TONE CURVE
-  // Medium-soft contrast, open-but-not-crushed blacks, smooth
-  // highlight shoulder rather than a hard clip.
+  // FILM TONE CURVE — exposure, shadow/black density, contrast,
+  // highlight shoulder, all in one per-channel pass.
+  // Target character: denser (not underexposed), blacks that stay
+  // genuinely black rather than a lifted gray floor, and a white
+  // table/dress that holds visible tone instead of blowing out.
   // ==========================================================
   function filmToneCurve(v) {
     let t = v / 255;
 
-    // Slight film black lift — blacks retain depth, don't crush
-    t = t * 0.975 + 0.018;
+    // 1. Exposure: ~-0.40 EV
+    t *= EXPOSURE_MULT;
 
-    // Open shadows slightly, preserving shadow detail
-    const shadow = Math.pow(1 - t, 2);
-    t += shadow * 0.015;
+    // 2. Shadow / black density: deepen slightly (never a hard floor —
+    // strong-but-not-crushed, per the reference's genuinely black lid).
+    const shadowW = Math.pow(Math.max(0, 0.35 - t) / 0.35, 1.6);
+    t -= shadowW * 0.045;
 
-    // Give midtones a touch of density (soft, not punchy contrast)
-    t = 0.5 + (t - 0.5) * 1.045;
+    // 3. Film contrast: S-curve around the midpoint (~+12).
+    t = 0.5 + (t - 0.5) * 1.13;
 
-    // Slightly brighten faces / upper-mids
-    const upperMid = t * t;
-    t += upperMid * 0.024;
-
-    // Portra-style highlight shoulder — gradual compression, not a clip
-    if (t > 0.72) {
-      const excess = t - 0.72;
-      t = 0.72 + excess * 0.76;
-    }
-
-    // Small positive exposure
-    t += 0.012;
+    // 4. Highlight shoulder
+    t = highlightShoulder(clamp(t, 0, 1.15));
 
     return clamp(t, 0, 1) * 255;
   }
 
   // Split-tone targets: cool/cyan-neutral shadows, peach-golden highlights.
-  const PORTRA_SHADOW_TINT = hslToRgb(190, 0.08, 0.50);
-  const PORTRA_HIGHLIGHT_TINT = hslToRgb(32, 0.19, 0.58);
+  const PORTRA_SHADOW_TINT = hslToRgbFast(190, 0.08, 0.50);
+  const PORTRA_HIGHLIGHT_TINT = hslToRgbFast(32, 0.19, 0.58);
 
   // ==========================================================
   // MAIN COLOR PIPELINE: tone -> white balance -> saturation ->
@@ -587,7 +599,7 @@
       b = gray + (b - gray) * vibrance;
 
       // ---- 5. TRUE HSL selective color mix (real hue/sat/lum shifts) ----
-      let hsl = rgbToHsl(clamp(r, 0, 255), clamp(g, 0, 255), clamp(b, 0, 255));
+      let hsl = rgbToHslFast(clamp(r, 0, 255), clamp(g, 0, 255), clamp(b, 0, 255));
 
       const redW = bandWeight(hsl.h, 5, 30);
       const orangeW = bandWeight(hsl.h, 30, 28);
@@ -603,18 +615,18 @@
 
       // ORANGE / SKIN — toward peach, less orange saturation, brighter skin
       hsl.h -= 4.0 * orangeW;
-      hsl.s -= 0.055 * orangeW;
-      hsl.l += 0.035 * orangeW;
+      hsl.s -= 0.065 * orangeW;
+      hsl.l += 0.030 * orangeW;
 
-      // YELLOW — restrained, kills phone-camera neon yellow
+      // YELLOW — restrained, kills phone-camera neon yellow, toward amber
       hsl.h -= 7.0 * yellowW;
-      hsl.s -= 0.13 * yellowW;
-      hsl.l += 0.012 * yellowW;
+      hsl.s -= 0.15 * yellowW;
+      hsl.l -= 0.006 * yellowW;
 
       // GREEN — olive/muted, natural foliage, not neon
       hsl.h -= 11.0 * greenW;
-      hsl.s -= 0.20 * greenW;
-      hsl.l -= 0.008 * greenW;
+      hsl.s -= 0.19 * greenW;
+      hsl.l -= 0.010 * greenW;
 
       // AQUA — moderately muted
       hsl.h -= 4.0 * aquaW;
@@ -623,12 +635,12 @@
       // BLUE — softer, slight cyan lean, natural sky
       hsl.h -= 7.0 * blueW;
       hsl.s -= 0.14 * blueW;
-      hsl.l += 0.008 * blueW;
+      hsl.l -= 0.006 * blueW;
 
       hsl.s = clamp(hsl.s, 0, 1);
       hsl.l = clamp(hsl.l, 0, 1);
 
-      const mixed = hslToRgb(hsl.h, hsl.s, hsl.l);
+      const mixed = hslToRgbFast(hsl.h, hsl.s, hsl.l);
       r = mixed.r; g = mixed.g; b = mixed.b;
 
       // ---- 6. Split-tone color grading ----
@@ -651,10 +663,10 @@
       g = 128 + (g - 128) * density;
       b = 128 + (b - 128) * density;
 
-      // ---- 8. Soft highlight rolloff (protects dresses / bright skies) ----
-      r = r <= 232 ? r : 232 + (r - 232) * 0.50;
-      g = g <= 232 ? g : 232 + (g - 232) * 0.50;
-      b = b <= 232 ? b : 232 + (b - 232) * 0.50;
+      // Highlight compression already happened inside filmToneCurve (step 1,
+      // before white balance/color) — no second independent rolloff here,
+      // since stacking two highlight curves would over-darken and undo the
+      // carefully-tuned shoulder.
 
       data[i] = clamp(r, 0, 255);
       data[i + 1] = clamp(g, 0, 255);
@@ -765,14 +777,55 @@
   }
 
   // Untinted, wider, even softer highlight bloom — smooths bright areas
-  // without blurring the whole image.
-  function applyHighlightBloom(ctx, sourceCanvas, w, h) {
+  // without blurring the whole image. Slightly stronger under flash, where
+  // real flash hot-spots genuinely bloom a bit more optically.
+  function applyHighlightBloom(ctx, sourceCanvas, w, h, flashProfile) {
     const mask = extractBrightMask(sourceCanvas, w, h, 0.80, 10);
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
-    ctx.globalAlpha = 0.028;
+    ctx.globalAlpha = flashProfile ? 0.032 : 0.026;
     ctx.drawImage(mask, 0, 0, w, h);
     ctx.restore();
+  }
+
+  // ==========================================================
+  // Flash-specific development, applied only when the shot was taken
+  // with flash on. NOT a separate pipeline — a small, targeted pass
+  // layered on top of the base Portra color pipeline: warms midtones a
+  // touch more (real flash color), pulls flash hot-spots back further
+  // (on top of the tone-curve's own shoulder), and adds a hair of extra
+  // ambient density away from the light — never a uniform brightening.
+  // ==========================================================
+  function applyFlashFilmProfile(imageData) {
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      let r = data[i], g = data[i + 1], b = data[i + 2];
+      const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+      // Slightly warmer midtones under flash.
+      const midW = Math.max(0, 1 - Math.abs(lum - 0.5) * 1.6);
+      r += 4 * midW;
+      g += 1.5 * midW;
+      b -= 2.5 * midW;
+
+      // Extra protection specifically for flash hot-spots.
+      if (lum > 0.80) {
+        const hw = (lum - 0.80) / 0.20;
+        const pull = hw * hw * 10;
+        r -= pull; g -= pull; b -= pull;
+      }
+
+      // A little extra ambient density away from the light.
+      if (lum < 0.6) {
+        const dw = (0.6 - lum) / 0.6;
+        const push = dw * 4;
+        r -= push; g -= push; b -= push;
+      }
+
+      data[i] = clamp(r, 0, 255);
+      data[i + 1] = clamp(g, 0, 255);
+      data[i + 2] = clamp(b, 0, 255);
+    }
   }
 
   // ==========================================================
@@ -781,7 +834,7 @@
   // 4-sample-averaged noise (approximately Gaussian, not harsh
   // uniform digital noise).
   // ==========================================================
-  function applyFilmGrain(imageData, w, h, baseStrength) {
+  function applyLuminanceAwareGrain(imageData, w, h, baseStrength) {
     const data = imageData.data;
     for (let i = 0; i < data.length; i += 4) {
       const r = data[i], g = data[i + 1], b = data[i + 2];
@@ -802,15 +855,18 @@
     }
   }
 
-  // Barely-there edge darkening — should almost disappear unless you're
-  // looking for it (approx. 6% max edge darkening).
-  function applyFilmVignette(ctx, w, h) {
+  // Combined vignette / flash falloff — one function, never stacked. Plain
+  // shots get a barely-there ~5.5% edge darkening; flash shots get a
+  // slightly tighter, slightly stronger (~7.5%) falloff that reads as
+  // natural light falloff from the flash rather than a decorative vignette.
+  function applyFilmFalloff(ctx, w, h, flashProfile) {
     const cx = w / 2, cy = h / 2;
-    const inner = Math.min(w, h) * 0.52;
-    const outer = Math.max(w, h) * 0.86;
+    const inner = Math.min(w, h) * (flashProfile ? 0.42 : 0.52);
+    const outer = Math.max(w, h) * (flashProfile ? 0.80 : 0.86);
+    const edgeAlpha = flashProfile ? 0.075 : 0.055;
     const gradient = ctx.createRadialGradient(cx, cy, inner, cx, cy, outer);
     gradient.addColorStop(0, 'rgba(0,0,0,0)');
-    gradient.addColorStop(1, 'rgba(0,0,0,0.06)');
+    gradient.addColorStop(1, `rgba(0,0,0,${edgeAlpha})`);
     ctx.save();
     ctx.globalCompositeOperation = 'multiply';
     ctx.fillStyle = gradient;
@@ -1554,7 +1610,9 @@
   // the developed version shown everywhere in the app. Mirrors the front
   // camera capture so a saved selfie matches what the guest saw in the
   // mirrored viewfinder — this is unchanged from before.
-  function captureAndDevelop() {
+  function captureAndDevelop(opts) {
+    opts = opts || {};
+    const flashProfile = !!opts.flashProfile;
     return new Promise((resolve, reject) => {
       const vw = camVideo.videoWidth;
       const vh = camVideo.videoHeight;
@@ -1595,11 +1653,15 @@
         dctx.filter = 'none';
         dctx.drawImage(originalCanvas, 0, 0);
 
-        // ---- Color development: tone, white balance, true HSL selective
-        // color, split toning, highlight rolloff — one pixel pass ----
+        // ---- Color development: exposure, black/shadow density, film
+        // contrast, highlight shoulder (all inside filmToneCurve), white
+        // balance, true HSL selective color, split toning — one pixel pass ----
         try {
           const imageData = dctx.getImageData(0, 0, tw, th);
           applyPortraColorPipeline(imageData);
+          if (flashProfile) {
+            applyFlashFilmProfile(imageData);
+          }
           dctx.putImageData(imageData, 0, 0);
         } catch (pixelErr) {
           console.error('Portra color pipeline failed (using undeveloped frame for this shot):', pixelErr);
@@ -1614,7 +1676,7 @@
 
         // ---- Bloom: extremely subtle softness on bright highlights ----
         try {
-          applyHighlightBloom(dctx, devCanvas, tw, th);
+          applyHighlightBloom(dctx, devCanvas, tw, th, flashProfile);
         } catch (e) {
           console.error('highlight bloom pass failed (continuing without it):', e);
         }
@@ -1623,18 +1685,19 @@
         // sharpen BEFORE grain, both in one more pixel-buffer round-trip ----
         try {
           const imageData2 = dctx.getImageData(0, 0, tw, th);
-          applyUnsharpMask(imageData2, tw, th, 0.28);
-          applyFilmGrain(imageData2, tw, th, 0.04);
+          applyUnsharpMask(imageData2, tw, th, 0.26);
+          applyLuminanceAwareGrain(imageData2, tw, th, 0.038);
           dctx.putImageData(imageData2, 0, 0);
         } catch (e) {
           console.error('sharpen/grain pass failed (continuing without it):', e);
         }
 
-        // ---- Vignette: barely-there edge darkening ----
+        // ---- Vignette / flash falloff: barely-there edge darkening,
+        // slightly stronger and tighter under flash — never both stacked ----
         try {
-          applyFilmVignette(dctx, tw, th);
+          applyFilmFalloff(dctx, tw, th, flashProfile);
         } catch (e) {
-          console.error('vignette pass failed (continuing without it):', e);
+          console.error('falloff/vignette pass failed (continuing without it):', e);
         }
 
         devCanvas.toBlob(developedBlob => {
@@ -1712,7 +1775,7 @@
       let captured;
       try {
         showCamStatus('Memproses film…');
-        captured = await captureAndDevelop();
+        captured = await captureAndDevelop({ flashProfile: wantFlash });
         hideCamStatus();
       } catch (captureErr) {
         console.error('capture failed:', {
