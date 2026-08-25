@@ -448,20 +448,6 @@
   // canvas exists at all, so this pipeline behaves identically everywhere —
   // no native/fallback branching needed.
 
- // ==========================================================
-// SOFT FILM CAMERA PRESET
-// Target:
-// Contrast -26
-// Highlights +19
-// Shadows -39
-// Whites +53
-// Blacks +32
-// Temp +27
-// Tint +10
-// Vibrance +39
-// Saturation -14
-// ==========================================================
-
 function hslToRgb(hDeg, s, l) {
   const h = ((hDeg % 360) + 360) % 360 / 360;
   let r, g, b;
@@ -478,10 +464,7 @@ function hslToRgb(hDeg, s, l) {
       return p;
     };
 
-    const q = l < 0.5
-      ? l * (1 + s)
-      : l + s - l * s;
-
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
     const p = 2 * l - q;
 
     r = hue2rgb(p, q, h + 1 / 3);
@@ -496,11 +479,6 @@ function hslToRgb(hDeg, s, l) {
   };
 }
 
-
-// ----------------------------------------------------------
-// RGB -> hue
-// ----------------------------------------------------------
-
 function hueOf(r, g, b) {
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
@@ -509,637 +487,251 @@ function hueOf(r, g, b) {
   if (d < 2) return -1;
 
   let h;
-
-  if (max === r) {
-    h = ((g - b) / d) % 6;
-  } else if (max === g) {
-    h = (b - r) / d + 2;
-  } else {
-    h = (r - g) / d + 4;
-  }
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
 
   h *= 60;
-
   if (h < 0) h += 360;
-
   return h;
 }
-
-
-// ----------------------------------------------------------
-// Smooth hue-band weighting
-// ----------------------------------------------------------
 
 function bandWeight(hue, center, width) {
   if (hue < 0) return 0;
 
   let diff = Math.abs(hue - center);
-
-  if (diff > 180) {
-    diff = 360 - diff;
-  }
+  if (diff > 180) diff = 360 - diff;
 
   const x = Math.max(0, 1 - diff / width);
-
-  // smoother transition
   return x * x * (3 - 2 * x);
 }
 
 
 // ----------------------------------------------------------
-// SOFT FILM TONE CURVE
-//
-// Important:
-// This version is intentionally softer than the previous one.
-// Blacks are lifted, whites are bright, but contrast is low.
+// SOFTER KODAK GOLD 200 CURVE
+// Inspired by:
+// Contrast +20, Highlights +22, Shadows -53, Whites -20, Blacks -20
+// But deliberately softened so it is not too dark or punchy.
 // ----------------------------------------------------------
-
 function filmToneCurve(v) {
   let t = v / 255;
 
-  // Blacks +32
-  // Lift the black floor without making the whole image foggy.
-  t = t * 0.90 + 0.10;
-
-  // Shadows -39
-  // Add some shadow depth, but preserve the lifted black floor.
+  // Slightly richer shadows, but not crushed
   const shadowW = Math.pow(1 - t, 2);
-  t -= 0.045 * shadowW;
+  t -= 0.06 * shadowW;
 
-  // Highlights +19
-  // Slightly brighten upper midtones.
+  // Gentle highlight lift
   const highlightW = t * t;
-  t += 0.045 * highlightW;
+  t += 0.055 * highlightW;
 
-  // Whites +53
-  // Brighter creamy whites.
-  const whiteW = Math.max(0, (t - 0.72) / 0.28);
-  t += 0.105 * whiteW * whiteW;
+  // Slight compression in extreme whites so bright areas stay soft
+  const whiteW = Math.max(0, (t - 0.78) / 0.22);
+  t -= 0.035 * whiteW * whiteW;
 
-  // Contrast -26
-  // Main soft-film treatment.
-  // Lower number = softer contrast.
-  t = 0.5 + (t - 0.5) * 0.76;
-
-  // Very gentle highlight roll-off.
-  if (t > 0.86) {
-    const excess = t - 0.86;
-    t = 0.86 + excess * 0.72;
+  // Mild black depth, but not heavy
+  if (t < 0.22) {
+    const lowW = (0.22 - t) / 0.22;
+    t -= 0.035 * lowW * lowW;
   }
 
-  return Math.max(0, Math.min(1, t)) * 255;
+  // Softer contrast than the recipe
+  t = 0.5 + (t - 0.5) * 1.03;
+
+  // Tiny lift to keep overall image from getting too dark
+  t += 0.01;
+
+  if (t < 0) t = 0;
+  if (t > 1) t = 1;
+  return t * 255;
 }
 
 
 // ----------------------------------------------------------
-// COLOR GRADING
+// Color grading
+// Original reference:
+// Shadows: hue 62, sat 79
+// Highlights: hue 205, sat 26
 //
-// Shadows:
-// Hue 99 / Saturation 9
-//
-// Highlights:
-// Hue 40 / Saturation 14
+// Made subtler here.
 // ----------------------------------------------------------
-
-const FILM_SHADOW_TINT =
-  hslToRgb(99, 0.09, 0.50);
-
-const FILM_HIGHLIGHT_TINT =
-  hslToRgb(40, 0.14, 0.56);
+const FILM_SHADOW_TINT = hslToRgb(62, 0.18, 0.50);
+const FILM_HIGHLIGHT_TINT = hslToRgb(205, 0.10, 0.56);
 
 
 // ----------------------------------------------------------
-// MAIN FILM DEVELOPMENT PIPELINE
+// Main development pipeline
 // ----------------------------------------------------------
-
 function applyKodakPixelPipeline(imageData) {
   const data = imageData.data;
 
   for (let i = 0; i < data.length; i += 4) {
-
     let r = data[i];
     let g = data[i + 1];
     let b = data[i + 2];
 
-
-    // ======================================================
-    // 1. TONE
-    // ======================================================
-
+    // ---- 1. Tone ----
     r = filmToneCurve(r);
     g = filmToneCurve(g);
     b = filmToneCurve(b);
 
+    // ---- 2. Color / WB ----
+    // Temp +14, Vibrance +10, Saturation -20
+    // Kept more subtle
+    r += 7;
+    g += 2;
+    b -= 4;
 
-    // ======================================================
-    // 2. WHITE BALANCE
-    //
-    // Temp +27
-    // Tint +10
-    //
-    // Warm, but deliberately not strongly orange.
-    // ======================================================
+    let gray = 0.299 * r + 0.587 * g + 0.114 * b;
 
-    r += 12;
-    g += 1;
-    b -= 8;
+    // Saturation -20 (slightly softened)
+    const satMul = 0.90;
+    r = gray + (r - gray) * satMul;
+    g = gray + (g - gray) * satMul;
+    b = gray + (b - gray) * satMul;
 
-    // slight magenta tint
-    r += 2;
-    g -= 2;
-    b += 1;
+    // Vibrance +10 (gentle)
+    const spread = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
+    const vibranceMul = 1 + 0.10 * (1 - spread);
 
+    gray = 0.299 * r + 0.587 * g + 0.114 * b;
+    r = gray + (r - gray) * vibranceMul;
+    g = gray + (g - gray) * vibranceMul;
+    b = gray + (b - gray) * vibranceMul;
 
-    // ======================================================
-    // 3. SATURATION -14
-    // ======================================================
+    // ---- 3. Shadow / highlight grading ----
+    const l = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    const shadowW = (1 - l) * (1 - l);
+    const highlightW = l * l;
 
-    let gray =
-      0.299 * r +
-      0.587 * g +
-      0.114 * b;
+    r += (FILM_SHADOW_TINT.r - 128) * shadowW * 0.055 + (FILM_HIGHLIGHT_TINT.r - 128) * highlightW * 0.040;
+    g += (FILM_SHADOW_TINT.g - 128) * shadowW * 0.055 + (FILM_HIGHLIGHT_TINT.g - 128) * highlightW * 0.040;
+    b += (FILM_SHADOW_TINT.b - 128) * shadowW * 0.055 + (FILM_HIGHLIGHT_TINT.b - 128) * highlightW * 0.040;
 
-    const saturation = 0.86;
-
-    r = gray + (r - gray) * saturation;
-    g = gray + (g - gray) * saturation;
-    b = gray + (b - gray) * saturation;
-
-
-    // ======================================================
-    // 4. VIBRANCE +39
-    //
-    // Boost muted colors more than already-saturated colors.
-    // Kept below literal Lightroom strength for pleasant skin.
-    // ======================================================
-
-    const maxC = Math.max(r, g, b);
-    const minC = Math.min(r, g, b);
-    const spread = Math.max(0, Math.min(1, (maxC - minC) / 255));
-
-    const vibrance =
-      1 + 0.25 * (1 - spread);
-
-    gray =
-      0.299 * r +
-      0.587 * g +
-      0.114 * b;
-
-    r = gray + (r - gray) * vibrance;
-    g = gray + (g - gray) * vibrance;
-    b = gray + (b - gray) * vibrance;
-
-
-    // ======================================================
-    // 5. COLOR GRADING
-    //
-    // Shadows slightly green/yellow
-    // Highlights warm golden
-    //
-    // Extremely subtle.
-    // ======================================================
-
-    const luminance =
-      Math.max(
-        0,
-        Math.min(
-          1,
-          (0.299 * r + 0.587 * g + 0.114 * b) / 255
-        )
-      );
-
-    const shadowWeight =
-      Math.pow(1 - luminance, 2);
-
-    const highlightWeight =
-      Math.pow(luminance, 2);
-
-    r +=
-      (FILM_SHADOW_TINT.r - 128) *
-      shadowWeight *
-      0.055;
-
-    g +=
-      (FILM_SHADOW_TINT.g - 128) *
-      shadowWeight *
-      0.055;
-
-    b +=
-      (FILM_SHADOW_TINT.b - 128) *
-      shadowWeight *
-      0.055;
-
-
-    r +=
-      (FILM_HIGHLIGHT_TINT.r - 128) *
-      highlightWeight *
-      0.075;
-
-    g +=
-      (FILM_HIGHLIGHT_TINT.g - 128) *
-      highlightWeight *
-      0.075;
-
-    b +=
-      (FILM_HIGHLIGHT_TINT.b - 128) *
-      highlightWeight *
-      0.075;
-
-
-    // ======================================================
-    // 6. COLOR MIX
-    // ======================================================
-
+    // ---- 4. Color mix ----
+    // Red: -23, +16, +10
+    // Orange: 0, -10, +20
+    // Yellow: 0, -12, +10
     const hue = hueOf(r, g, b);
 
     if (hue >= 0) {
-
-      const redW =
-        bandWeight(hue, 5, 28);
-
-      const orangeW =
-        bandWeight(hue, 30, 24);
-
-      const yellowW =
-        bandWeight(hue, 58, 26);
-
-      const greenW =
-        bandWeight(hue, 120, 48);
-
-      const aquaW =
-        bandWeight(hue, 185, 30);
-
-      const blueW =
-        bandWeight(hue, 220, 40);
-
-
-      // ----------------------------------------------------
-      // RED
-      // Saturation +16
-      // Luminance +18
-      // ----------------------------------------------------
+      const redW = bandWeight(hue, 8, 24);
+      const orangeW = bandWeight(hue, 30, 20);
+      const yellowW = bandWeight(hue, 54, 20);
 
       if (redW > 0) {
+        // Slight red shift toward orange + a touch more color and brightness
+        r += 2 * redW;
+        g += 1 * redW;
 
-        gray =
-          0.299 * r +
-          0.587 * g +
-          0.114 * b;
-
-        const m =
-          1 + 0.11 * redW;
-
+        gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        const m = 1 + 0.08 * redW;
         r = gray + (r - gray) * m;
         g = gray + (g - gray) * m;
         b = gray + (b - gray) * m;
 
-        const lum = 6 * redW;
-
-        r += lum;
-        g += lum;
-        b += lum;
+        r += 4 * redW;
+        g += 4 * redW;
+        b += 4 * redW;
       }
-
-
-      // ----------------------------------------------------
-      // ORANGE
-      // Saturation +19
-      // Luminance +38
-      //
-      // Important for skin tones.
-      // ----------------------------------------------------
 
       if (orangeW > 0) {
-
-        gray =
-          0.299 * r +
-          0.587 * g +
-          0.114 * b;
-
-        const m =
-          1 + 0.13 * orangeW;
-
+        // Slightly softer orange saturation, but brighter
+        gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        const m = 1 - 0.06 * orangeW;
         r = gray + (r - gray) * m;
         g = gray + (g - gray) * m;
         b = gray + (b - gray) * m;
 
-        const lum =
-          12 * orangeW;
-
-        r += lum;
-        g += lum;
-        b += lum;
-
-        // very subtle warm skin bias
-        r += 2 * orangeW;
-        g += 1 * orangeW;
+        r += 7 * orangeW;
+        g += 7 * orangeW;
+        b += 7 * orangeW;
       }
-
-
-      // ----------------------------------------------------
-      // YELLOW
-      // Hue +42
-      // Saturation -22
-      // Luminance +30
-      //
-      // Softens strong yellow while keeping it bright.
-      // ----------------------------------------------------
 
       if (yellowW > 0) {
-
-        // nudge yellow gently toward green
-        g += 3.5 * yellowW;
-        r -= 1.5 * yellowW;
-
-        gray =
-          0.299 * r +
-          0.587 * g +
-          0.114 * b;
-
-        const m =
-          1 - 0.17 * yellowW;
-
+        // Slightly softer yellow, a bit brighter
+        gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        const m = 1 - 0.08 * yellowW;
         r = gray + (r - gray) * m;
         g = gray + (g - gray) * m;
         b = gray + (b - gray) * m;
 
-        const lum =
-          9 * yellowW;
-
-        r += lum;
-        g += lum;
-        b += lum;
-      }
-
-
-      // ----------------------------------------------------
-      // GREEN
-      // Saturation -39
-      // Luminance -23
-      //
-      // Gives foliage the muted film-camera appearance.
-      // ----------------------------------------------------
-
-      if (greenW > 0) {
-
-        gray =
-          0.299 * r +
-          0.587 * g +
-          0.114 * b;
-
-        const m =
-          1 - 0.30 * greenW;
-
-        r = gray + (r - gray) * m;
-        g = gray + (g - gray) * m;
-        b = gray + (b - gray) * m;
-
-        const darken =
-          6 * greenW;
-
-        r -= darken;
-        g -= darken;
-        b -= darken;
-
-        // tiny olive bias
-        r += 1.5 * greenW;
-        g += 0.5 * greenW;
-      }
-
-
-      // ----------------------------------------------------
-      // AQUA
-      // Hue -10
-      // ----------------------------------------------------
-
-      if (aquaW > 0) {
-        g -= 2.0 * aquaW;
-        b += 2.0 * aquaW;
-      }
-
-
-      // ----------------------------------------------------
-      // BLUE
-      // Hue -10
-      //
-      // Keep skies soft rather than intensely digital blue.
-      // ----------------------------------------------------
-
-      if (blueW > 0) {
-        r += 1.5 * blueW;
-        g -= 1.0 * blueW;
-
-        gray =
-          0.299 * r +
-          0.587 * g +
-          0.114 * b;
-
-        const softBlue =
-          1 - 0.05 * blueW;
-
-        r = gray + (r - gray) * softBlue;
-        g = gray + (g - gray) * softBlue;
-        b = gray + (b - gray) * softBlue;
+        r += 4 * yellowW;
+        g += 4 * yellowW;
+        b += 4 * yellowW;
       }
     }
 
+    // ---- 5. Effect texture +10
+    // very mild clarity
+    const l2 = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    const midW = Math.max(0, 1 - Math.abs(l2 - 0.5) * 2);
 
-    // ======================================================
-    // 7. CLARITY +16 / DEHAZE -12
-    //
-    // Net effect intentionally mild.
-    // Adds slight structure without losing airy look.
-    // ======================================================
+    if (midW > 0) {
+      const tex = midW * 0.012;
+      r += (r - 128) * tex;
+      g += (g - 128) * tex;
+      b += (b - 128) * tex;
+    }
 
-    const l2 =
-      Math.max(
-        0,
-        Math.min(
-          1,
-          (0.299 * r + 0.587 * g + 0.114 * b) / 255
-        )
-      );
-
-    const midW =
-      Math.max(
-        0,
-        1 - Math.abs(l2 - 0.5) * 2
-      );
-
-    const textureStrength =
-      midW * 0.012;
-
-    r += (r - 128) * textureStrength;
-    g += (g - 128) * textureStrength;
-    b += (b - 128) * textureStrength;
-
-
-    // ======================================================
-    // 8. FINAL SOFT HIGHLIGHT ROLLOFF
-    //
-    // Prevent warm skin / bright skies from clipping harshly.
-    // ======================================================
-
-    const compressHighlight = value => {
-      if (value <= 235) return value;
-
-      return 235 +
-        (value - 235) * 0.55;
-    };
-
-    r = compressHighlight(r);
-    g = compressHighlight(g);
-    b = compressHighlight(b);
-
-
-    // ======================================================
-    // WRITE PIXEL
-    // ======================================================
-
-    data[i] =
-      Math.max(0, Math.min(255, r));
-
-    data[i + 1] =
-      Math.max(0, Math.min(255, g));
-
-    data[i + 2] =
-      Math.max(0, Math.min(255, b));
+    data[i] = Math.max(0, Math.min(255, r));
+    data[i + 1] = Math.max(0, Math.min(255, g));
+    data[i + 2] = Math.max(0, Math.min(255, b));
   }
 }
 
 
-// ==========================================================
-// VIGNETTE -27
-//
-// Softer than the previous version.
-// ==========================================================
-
+// ----------------------------------------------------------
+// Vignette
+// Reference says -18, but keep it softer.
+// ----------------------------------------------------------
 function applyKodakVignette(ctx, w, h) {
-
   const cx = w / 2;
   const cy = h / 2;
+  const inner = Math.min(w, h) * 0.42;
+  const outer = Math.max(w, h) * 0.78;
 
-  const inner =
-    Math.min(w, h) * 0.43;
-
-  const outer =
-    Math.max(w, h) * 0.79;
-
-  const gradient =
-    ctx.createRadialGradient(
-      cx,
-      cy,
-      inner,
-      cx,
-      cy,
-      outer
-    );
-
-  gradient.addColorStop(
-    0,
-    'rgba(0,0,0,0)'
-  );
-
-  gradient.addColorStop(
-    0.72,
-    'rgba(0,0,0,0.015)'
-  );
-
-  gradient.addColorStop(
-    1,
-    'rgba(0,0,0,0.16)'
-  );
+  const gradient = ctx.createRadialGradient(cx, cy, inner, cx, cy, outer);
+  gradient.addColorStop(0, 'rgba(0,0,0,0)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0.16)');
 
   ctx.save();
-
-  ctx.globalCompositeOperation =
-    'multiply';
-
-  ctx.fillStyle =
-    gradient;
-
-  ctx.fillRect(
-    0,
-    0,
-    w,
-    h
-  );
-
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, w, h);
   ctx.restore();
 }
 
 
-// ==========================================================
-// FILM GRAIN
-//
-// Target Grain 30–45.
-// Moderately visible but still flattering on faces.
-// ==========================================================
-
+// ----------------------------------------------------------
+// Grain
+// Reference grain is visible, but keep it pleasing.
+// ----------------------------------------------------------
 let grainPatternCanvas = null;
 
 function getGrainPattern(ctx) {
-
   if (!grainPatternCanvas) {
-
     const size = 96;
-
-    const canvas =
-      document.createElement('canvas');
-
+    const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
 
-    const gctx =
-      canvas.getContext('2d');
+    const gctx = canvas.getContext('2d');
+    const imageData = gctx.createImageData(size, size);
+    const data = imageData.data;
 
-    const imageData =
-      gctx.createImageData(
-        size,
-        size
-      );
-
-    const data =
-      imageData.data;
-
-
-    for (
-      let i = 0;
-      i < data.length;
-      i += 4
-    ) {
-
-      // softer monochromatic film grain
-      const noise =
-        (Math.random() +
-         Math.random() +
-         Math.random()) / 3;
-
-      const v =
-        128 +
-        (noise - 0.5) * 50;
-
+    for (let i = 0; i < data.length; i += 4) {
+      const v = 128 + (Math.random() - 0.5) * 42;
       data[i] = v;
       data[i + 1] = v;
       data[i + 2] = v;
       data[i + 3] = 255;
     }
 
-
-    gctx.putImageData(
-      imageData,
-      0,
-      0
-    );
-
-    grainPatternCanvas =
-      canvas;
+    gctx.putImageData(imageData, 0, 0);
+    grainPatternCanvas = canvas;
   }
 
-  return ctx.createPattern(
-    grainPatternCanvas,
-    'repeat'
-  );
+  return ctx.createPattern(grainPatternCanvas, 'repeat');
 }
 
   // ---------- local identity ----------
@@ -1930,7 +1522,7 @@ function getGrainPattern(ctx) {
           const pattern = getGrainPattern(dctx);
           if (pattern) {
             dctx.save();
-            dctx.globalAlpha = 0.055;
+            dctx.globalAlpha = 0.045;
             dctx.globalCompositeOperation = 'overlay';
             dctx.fillStyle = pattern;
             dctx.fillRect(0, 0, tw, th);
