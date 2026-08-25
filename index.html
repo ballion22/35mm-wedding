@@ -147,7 +147,30 @@
   .shutter:disabled { border-color: var(--paper-dim); opacity: 0.5; cursor: not-allowed; }
   h2.title2 { font-family: Georgia, serif; font-size: 24px; color: var(--paper); margin: 0 0 4px; }
   .desc { font-size: 14px; line-height: 1.6; color: var(--paper-dim); margin-bottom: 24px; }
-  .album-guest-line { font-size: 13px; color: var(--paper-dim); margin: 0 0 14px; }
+  .album-summary-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 14px; }
+  .moment-highlight {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border: 1px solid var(--amber-dim);
+    border-radius: 20px;
+    background: rgba(232, 163, 61, 0.08);
+    color: var(--amber);
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  .moment-highlight span { margin-right: 4px; }
+  .camera-icon-btn {
+    width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+    border: none;
+    background: var(--amber);
+    color: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 0;
+  }
+  .camera-icon-btn:disabled { background: var(--paper-dim); opacity: 0.5; cursor: not-allowed; }
   .album-limit-msg { font-size: 13px; color: var(--paper-dim); line-height: 1.5; margin: 0 0 18px; padding: 10px 12px; border: 1px solid var(--amber-dim); border-radius: 4px; background: var(--dark-edge); display: none; }
   .album-header { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 10px; }
   .album-header .roll-title { font-family: Georgia, serif; font-size: 14px; color: var(--paper); }
@@ -267,12 +290,12 @@
     <h1 class="title">Dhani &amp; Firda</h1>
     <p class="subdate">4 Oktober 2026 — Malang</p>
     <p class="body-copy">
-      Kamu jadi fotografer hari ini. Masukkan nama, lalu mulai memotret dengan Kodak Gold 200.
-      Setiap foto langsung diproses dan muncul di album bersama — semua tamu bisa melihatnya seketika.
+      Hari ini kamu jadi fotografernya.
+      Tunjukkan POV-mu, tangkap momennya, dan selamat berfoto-foto! 📸
     </p>
     <div class="spacer"></div>
     <input type="text" id="guest-name-input" placeholder="Nama kamu" />
-    <button class="btn-primary" id="btn-join" disabled>Ambil kamera →</button>
+    <button class="btn-primary" id="btn-join" disabled>Mulai →</button>
   </div>
 
   <!-- CAMERA -->
@@ -327,13 +350,17 @@
   <div class="screen" id="screen-album">
     <div class="eyebrow">The Wedding of</div>
     <h2 class="title2">Dhani &amp; Firda</h2>
-    <p class="album-guest-line" id="album-guest-line"></p>
-    <button class="btn-primary" id="btn-take-photo" title="Ambil Foto" aria-label="Ambil Foto">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#14110E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block; margin:0 auto;">
-        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
-        <circle cx="12" cy="13" r="3"></circle>
-      </svg>
-    </button>
+    <div class="album-summary-row">
+      <div class="moment-highlight">
+        <span id="album-moment-count">0</span> Momen
+      </div>
+      <button class="camera-icon-btn" id="btn-take-photo" title="Ambil Foto" aria-label="Ambil Foto">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+          <circle cx="12" cy="13" r="3"></circle>
+        </svg>
+      </button>
+    </div>
     <p class="album-limit-msg" id="album-limit-msg">Jatah 15 foto kamu sudah habis — terima kasih sudah mengabadikan momen ini! Kamu masih bisa menjelajahi album bersama di bawah.</p>
     <div class="album-header">
       <span class="roll-title" id="album-title-label">Album Bersama</span>
@@ -413,17 +440,9 @@
     albumTitleLabel.textContent = LOCAL_ONLY_MODE ? 'Album Sementara' : 'Album Bersama';
   }
 
-  // Feature-detect baking a CSS filter into a canvas. Supported in Safari
-  // since 15.4 and in Chrome for years; if it's ever missing, the "developed"
-  // upload just falls back to the same bytes as the original rather than
-  // failing the capture.
-  const CANVAS_FILTER_SUPPORTED = (() => {
-    try {
-      return 'filter' in document.createElement('canvas').getContext('2d');
-    } catch (e) {
-      return false;
-    }
-  })();
+  // Kodak development always runs a per-capture check of whether the
+  // browser actually applies ctx.filter (some expose the property but
+  // silently ignore parts of the filter chain) — see captureAndDevelop().
 
   // Very light film grain: a small noise texture generated ONCE and cached,
   // then tiled with a cheap pattern fill on every capture — never a
@@ -1207,37 +1226,98 @@
       originalCanvas.toBlob(originalBlob => {
         if (!originalBlob) { reject(new Error('original toBlob failed')); return; }
 
-        if (!CANVAS_FILTER_SUPPORTED) {
-          resolve({ originalBlob, developedBlob: originalBlob, width: tw, height: th });
-          return;
-        }
-
         const devCanvas = document.createElement('canvas');
         devCanvas.width = tw;
         devCanvas.height = th;
         const dctx = devCanvas.getContext('2d');
-        try { dctx.filter = KODAK_FILTER; } catch (e) {}
-        dctx.drawImage(originalCanvas, 0, 0);
 
-        // Subtle warm overlay + soft creamy fade — flat, cheap fillRects,
-        // not per-pixel work, so this adds negligible capture time.
+        // Some browsers expose CanvasRenderingContext2D.filter but don't
+        // reliably apply every operation in the chain — so verify the
+        // assignment actually stuck, per capture, rather than trusting a
+        // one-time feature-presence check.
+        let nativeFilterWorks = false;
+        try {
+          dctx.filter = KODAK_FILTER;
+          nativeFilterWorks = typeof dctx.filter === 'string' && dctx.filter !== 'none';
+        } catch (e) {
+          nativeFilterWorks = false;
+        }
+
+        if (nativeFilterWorks) {
+          dctx.drawImage(originalCanvas, 0, 0);
+          dctx.filter = 'none'; // reset before the overlay fills below
+        } else {
+          // Pixel-based Kodak-Gold-inspired fallback: a lightweight color
+          // transform applied directly to the pixel data, so the developed
+          // image is never just a copy of the unfiltered original.
+          dctx.filter = 'none';
+          dctx.drawImage(originalCanvas, 0, 0);
+          try {
+            const imageData = dctx.getImageData(0, 0, tw, th);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+              let r = data[i];
+              let g = data[i + 1];
+              let b = data[i + 2];
+
+              // gentle exposure lift
+              r *= 1.05;
+              g *= 1.03;
+              b *= 0.98;
+
+              // golden warmth
+              r += 8;
+              g += 4;
+              b -= 5;
+
+              // slightly softer contrast
+              r = (r - 128) * 0.96 + 128;
+              g = (g - 128) * 0.96 + 128;
+              b = (b - 128) * 0.95 + 128;
+
+              // modest film-like saturation
+              const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+              r = gray + (r - gray) * 1.12;
+              g = gray + (g - gray) * 1.08;
+              b = gray + (b - gray) * 1.04;
+
+              data[i] = Math.max(0, Math.min(255, r));
+              data[i + 1] = Math.max(0, Math.min(255, g));
+              data[i + 2] = Math.max(0, Math.min(255, b));
+            }
+            dctx.putImageData(imageData, 0, 0);
+          } catch (pixelErr) {
+            // If even the pixel fallback can't run (e.g. a canvas tainted
+            // by something unexpected), the guest still gets a real photo —
+            // just without the Kodak treatment for this one shot — rather
+            // than a failed capture.
+            console.error('Kodak pixel fallback failed (using undeveloped frame for this shot):', pixelErr);
+          }
+        }
+
+        console.log(nativeFilterWorks ? 'Kodak development: native canvas filter' : 'Kodak development: pixel fallback');
+        console.log('Kodak filter:', KODAK_FILTER);
+
+        // Warm overlay + soft creamy fade — runs on BOTH paths above, not
+        // just the native-filter one. Flat, cheap fillRects, not per-pixel
+        // work, so this adds negligible capture time either way.
         try {
           dctx.filter = 'none';
-          dctx.fillStyle = 'rgba(255, 210, 120, 0.08)';
+          dctx.fillStyle = 'rgba(255, 210, 120, 0.07)';
           dctx.fillRect(0, 0, tw, th);
-          dctx.fillStyle = 'rgba(255, 245, 220, 0.04)';
+          dctx.fillStyle = 'rgba(255, 245, 220, 0.025)';
           dctx.fillRect(0, 0, tw, th);
         } catch (e) {
           console.error('Kodak overlay pass failed (continuing without it):', e);
         }
 
-        // Very light film grain — purely cosmetic, never allowed to fail
-        // the capture itself.
+        // Very light film grain — also runs on both paths, purely
+        // cosmetic, never allowed to fail the capture itself.
         try {
           const pattern = getGrainPattern(dctx);
           if (pattern) {
             dctx.save();
-            dctx.globalAlpha = 0.05;
+            dctx.globalAlpha = 0.035;
             dctx.globalCompositeOperation = 'overlay';
             dctx.fillStyle = pattern;
             dctx.fillRect(0, 0, tw, th);
@@ -1434,7 +1514,7 @@
   });
 
   // ---------- ALBUM ----------
-  const albumGuestLine = document.getElementById('album-guest-line');
+  const albumMomentCount = document.getElementById('album-moment-count');
   const btnTakePhoto = document.getElementById('btn-take-photo');
   const albumLimitMsg = document.getElementById('album-limit-msg');
   const albumGrid = document.getElementById('album-grid');
@@ -1483,9 +1563,11 @@
     }
   }
 
-  function renderAlbumGuestLine() {
+  // Controls only whether the guest's personal camera shortcut is available
+  // — this is still driven by the guest's own 15-shot count internally, but
+  // the Album header itself no longer displays any guest-specific text.
+  function updateAlbumCameraAvailability() {
     const remaining = Math.max(0, FRAME_LIMIT - state.usedCount);
-    albumGuestLine.textContent = 'Halo, ' + (state.guestName || 'Tamu') + ' · ' + state.usedCount + '/' + FRAME_LIMIT + ' foto';
     if (remaining <= 0) {
       btnTakePhoto.style.display = 'none';
       albumLimitMsg.style.display = 'block';
@@ -1515,6 +1597,13 @@
     merged.sort((a, b) => new Date(b.capturedAt) - new Date(a.capturedAt));
     lastRenderedAlbumItems = merged;
 
+    // "Momen" represents what's actually in the album right now (locally
+    // available items in local-only mode; every loaded shared-album item
+    // once Supabase mode is back on) — never the current guest's own count.
+    if (albumMomentCount) {
+      albumMomentCount.textContent = String(merged.length);
+    }
+
     albumGrid.innerHTML = '';
     if (merged.length === 0) {
       albumEmpty.style.display = 'block';
@@ -1540,7 +1629,7 @@
   async function goToAlbumScreen(opts) {
     opts = opts || {};
     showScreen('screen-album');
-    renderAlbumGuestLine();
+    updateAlbumCameraAvailability();
     renderAlbumGrid();
 
     if (!LOCAL_ONLY_MODE && opts.refresh !== false && supabaseClient) {
@@ -1553,7 +1642,7 @@
       } catch (e) {
         console.error('goToAlbumScreen refresh failed:', e);
       }
-      renderAlbumGuestLine();
+      updateAlbumCameraAvailability();
       renderAlbumGrid();
     }
   }
