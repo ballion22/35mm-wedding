@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Film Camera — Dhani & Firda</title>
+<title>Wedding Camera — Dhani & Firda</title>
 <style>
   :root {
     --dark: #1C1815;
@@ -85,24 +85,6 @@
     cursor: pointer;
   }
   .btn-primary:disabled { background: var(--paper-dim); opacity: 0.5; cursor: not-allowed; }
-  .preset-card {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px;
-    border-radius: 4px;
-    border: 1px solid #332e28;
-    background: transparent;
-    text-align: left;
-    cursor: pointer;
-    margin-bottom: 12px;
-  }
-  .preset-card.active { border-color: var(--amber); background: #2a2520; }
-  .preset-swatch { width: 56px; height: 56px; border-radius: 4px; flex-shrink: 0; }
-  .preset-name { font-weight: 600; font-size: 15px; color: var(--paper); }
-  .preset-mood { font-size: 12px; color: var(--paper-dim); }
-  .preset-check { margin-left: auto; color: var(--amber); font-size: 18px; }
   .cam-top { display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; gap: 8px; }
   .cam-caption { font-size: 12px; color: var(--paper-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cam-top-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -139,39 +121,53 @@
   .preview-label { position: absolute; bottom: 8px; left: 8px; right: 8px; text-align: center; font-size: 10px; color: var(--paper-dim); }
   .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity 0.1s; }
   .flash.on { opacity: 1; }
-  .roll-full-msg { font-size: 12px; color: var(--safety); text-align: center; margin-bottom: 8px; display: none; }
+  .zoom-row {
+    position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
+    display: none; gap: 4px;
+    background: rgba(18,16,13,0.6);
+    border-radius: 20px; padding: 4px;
+    z-index: 2;
+  }
+  .zoom-btn {
+    width: 34px; height: 26px; border-radius: 16px; border: none;
+    background: transparent; color: var(--paper-dim);
+    font-size: 11px; font-family: 'Courier New', monospace; cursor: pointer;
+  }
+  .zoom-btn.active { background: var(--amber); color: var(--ink); font-weight: 600; }
+  .cam-status-msg { font-size: 12px; color: var(--safety); text-align: center; margin-bottom: 8px; min-height: 14px; }
   .cam-controls { display: flex; align-items: center; justify-content: space-between; }
   .link-btn { background: none; border: none; color: var(--paper-dim); text-decoration: underline; font-size: 12px; cursor: pointer; padding: 0; }
   .shutter { width: 64px; height: 64px; border-radius: 50%; background: var(--paper); border: 4px solid var(--amber); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
   .shutter:disabled { border-color: var(--paper-dim); opacity: 0.5; cursor: not-allowed; }
-  .roll-section { margin-top: 18px; }
-  .roll-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
-  .roll-title { font-family: Georgia, serif; font-size: 14px; color: var(--paper); }
-  .roll-count { font-size: 11px; color: var(--paper-dim); font-family: 'Courier New', monospace; }
-  .roll-empty { font-size: 12px; color: var(--paper-dim); padding: 10px 0; }
-  .roll-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
-  .roll-thumb-wrap { position: relative; flex: 0 0 auto; }
-  .roll-thumb { width: 56px; height: 56px; border-radius: 4px; border: 1px solid #332e28; background-size: cover; background-position: center; padding: 0; cursor: pointer; display: block; }
-  .roll-confirm { position: absolute; inset: 0; background: rgba(18,16,13,0.94); border-radius: 4px; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
-  .roll-confirm span { font-size: 9px; color: var(--paper); }
-  .roll-confirm button { font-size: 9px; border: none; background: none; color: var(--amber); cursor: pointer; padding: 2px 4px; }
-  .roll-confirm-no { color: var(--paper-dim) !important; }
-  .center-screen { align-items: center; justify-content: center; text-align: center; }
-  h2.title2 { font-family: Georgia, serif; font-size: 24px; color: var(--paper); margin: 0 0 8px; }
+  h2.title2 { font-family: Georgia, serif; font-size: 24px; color: var(--paper); margin: 0 0 4px; }
   .desc { font-size: 14px; line-height: 1.6; color: var(--paper-dim); margin-bottom: 24px; }
-  .countdown-pill { font-family: 'Courier New', monospace; font-size: 14px; padding: 6px 12px; border-radius: 4px; background: var(--dark-edge); color: var(--amber); border: 1px solid var(--amber-dim); }
-  .developed-strip { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-height: 190px; overflow-y: auto; margin: 4px 0 10px; padding: 4px 0; }
-  .developed-thumb { width: 54px; height: 54px; border-radius: 4px; background-size: cover; background-position: center; border: 1px solid #332e28; flex-shrink: 0; }
-  .developed-note { font-size: 11px; color: var(--paper-dim); margin: 0 0 20px; }
-  .reveal-count { font-size: 12px; color: var(--paper-dim); margin-bottom: 4px; }
-  .reveal-note { font-size: 11px; color: var(--paper-dim); margin-bottom: 16px; line-height: 1.5; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex: 1; overflow-y: auto; }
-  .grid-item-photo { width: 100%; aspect-ratio: 3/4; border-radius: 4px; background-size: cover; background-position: center; }
-  .grid-item-caption { font-size: 10px; color: var(--paper-dim); margin-top: 4px; }
-  .toast { font-size: 12px; text-align: center; color: var(--amber); margin-bottom: 8px; min-height: 16px; }
+  .album-guest-line { font-size: 13px; color: var(--paper-dim); margin: 0 0 14px; }
+  .album-limit-msg { font-size: 13px; color: var(--paper-dim); line-height: 1.5; margin: 0 0 18px; padding: 10px 12px; border: 1px solid var(--amber-dim); border-radius: 4px; background: var(--dark-edge); display: none; }
+  .album-header { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 10px; }
+  .album-header .roll-title { font-family: Georgia, serif; font-size: 14px; color: var(--paper); }
+  .album-refresh-btn { background: none; border: none; color: var(--paper-dim); font-size: 16px; cursor: pointer; padding: 2px 4px; line-height: 1; }
+  .album-refresh-btn:active { color: var(--amber); }
+  .album-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex: 1; overflow-y: auto; align-content: start; }
+  .album-item { position: relative; width: 100%; aspect-ratio: 3/4; border-radius: 4px; overflow: hidden; background-size: cover; background-position: center; background-color: #241f1a; }
+  .album-item-name {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 5px 7px 4px;
+    font-size: 10px; color: var(--paper);
+    background: linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0));
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .album-item.pending-local::after {
+    content: '';
+    position: absolute; top: 6px; right: 6px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--amber); border: 1px solid var(--dark-edge);
+    animation: syncPulse 1.1s ease-in-out infinite;
+  }
+  @keyframes syncPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .album-empty { font-size: 13px; color: var(--paper-dim); padding: 24px 0; text-align: center; }
   .test-reset-btn {
     width: 100%;
-    margin-top: 10px;
+    margin-top: 14px;
     padding: 10px;
     border-radius: 4px;
     border: 1px dashed var(--paper-dim);
@@ -182,6 +178,73 @@
     cursor: pointer;
   }
   .test-reset-btn:active { color: var(--amber); border-color: var(--amber-dim); }
+  .album-item { cursor: pointer; }
+
+  /* ---------- fullscreen viewer ---------- */
+  .lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,9,7,0.96);
+    z-index: 1000;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)) 20px;
+  }
+  .lightbox.active { display: flex; }
+  .lightbox-image {
+    width: 100%;
+    max-width: 420px;
+    aspect-ratio: 3 / 4;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    border-radius: 4px;
+    background-color: #0c0a08;
+  }
+  .lightbox-close {
+    position: absolute;
+    top: max(16px, env(safe-area-inset-top));
+    right: 16px;
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 1px solid var(--amber-dim);
+    background: var(--dark-edge);
+    color: var(--paper);
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .lightbox-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1px solid var(--amber-dim);
+    background: var(--dark-edge);
+    color: var(--paper);
+    font-size: 22px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1;
+  }
+  .lightbox-prev { left: 12px; }
+  .lightbox-next { right: 12px; }
+  .lightbox-nav:disabled { opacity: 0.3; cursor: not-allowed; }
+  .lightbox-footer { width: 100%; max-width: 420px; margin-top: 14px; }
+  .lightbox-caption { display: block; font-size: 12px; color: var(--paper-dim); margin-bottom: 10px; text-align: center; }
+  .lightbox-actions { display: flex; gap: 10px; }
+  .lightbox-action-btn {
+    flex: 1;
+    padding: 11px;
+    border-radius: 4px;
+    border: 1px solid var(--amber-dim);
+    background: var(--dark-edge);
+    color: var(--paper);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .lightbox-action-btn:active { border-color: var(--amber); color: var(--amber); }
+  .lightbox-toast { margin-top: 10px; font-size: 11px; color: var(--amber); text-align: center; min-height: 14px; }
 </style>
 </head>
 <body>
@@ -195,20 +258,12 @@
     <h1 class="title">Dhani &amp; Firda</h1>
     <p class="subdate">4 Oktober 2026 — Malang</p>
     <p class="body-copy">
-      Kamu jadi fotografer hari ini. Masukkan nama, pilih rol film, lalu mulai memotret.
-      Semua foto tersembunyi sampai pesta usai — lalu terungkap sekaligus.
+      Kamu jadi fotografer hari ini. Masukkan nama, lalu mulai memotret dengan Kodak Gold 200.
+      Setiap foto langsung diproses dan muncul di album bersama — semua tamu bisa melihatnya seketika.
     </p>
     <div class="spacer"></div>
     <input type="text" id="guest-name-input" placeholder="Nama kamu" />
     <button class="btn-primary" id="btn-join" disabled>Ambil kamera →</button>
-  </div>
-
-  <!-- PRESET -->
-  <div class="screen" id="screen-preset">
-    <div class="eyebrow">Pilih rol film</div>
-    <p class="desc" style="margin-bottom:20px;">Satu rol untuk seluruh album, biar semua foto senada.</p>
-    <div id="preset-list" style="flex:1;"></div>
-    <button class="btn-primary" id="btn-preset" disabled>Pasang rol ini →</button>
   </div>
 
   <!-- CAMERA -->
@@ -233,10 +288,15 @@
       <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
       <div class="preview-label" id="preview-label">mode pratinjau</div>
       <div class="flash" id="flash"></div>
+      <div class="zoom-row" id="zoom-row">
+        <button class="zoom-btn" id="zoom-wide" data-zoom="0.5">.5x</button>
+        <button class="zoom-btn active" id="zoom-1x" data-zoom="1">1x</button>
+        <button class="zoom-btn" id="zoom-tele" data-zoom="2">2x</button>
+      </div>
     </div>
-    <div class="roll-full-msg" id="roll-full-msg">Rol kamu penuh. Hapus foto untuk memotret lagi.</div>
+    <div class="cam-status-msg" id="cam-status-msg"></div>
     <div class="cam-controls">
-      <button class="link-btn" id="btn-finish-early">Selesai lebih awal</button>
+      <button class="link-btn" id="btn-back-album">‹ Album</button>
       <button class="shutter" id="btn-shutter">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#14110E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
@@ -249,41 +309,41 @@
         </svg>
       </button>
     </div>
-    <div class="roll-section">
-      <div class="roll-header">
-        <span class="roll-title">Rol Kamu</span>
-        <span class="roll-count" id="roll-count">0 foto</span>
-      </div>
-      <div class="roll-empty" id="roll-empty">Foto yang kamu ambil akan muncul di sini.</div>
-      <div class="roll-strip" id="roll-strip"></div>
-    </div>
   </div>
 
-  <!-- DONE -->
-  <div class="screen center-screen" id="screen-done">
-    <div style="color: var(--amber); font-size: 28px; margin-bottom: 12px;">✦</div>
-    <h2 class="title2">Film kamu sudah habis</h2>
-    <p class="desc" id="done-desc"></p>
-    <div class="developed-strip" id="developed-strip"></div>
-    <p class="developed-note">Album lengkap masih dikembangkan.</p>
-    <div class="countdown-pill" id="countdown-pill">Terungkap dalam 0:08 (demo)</div>
-  </div>
-
-  <!-- REVEAL -->
-  <div class="screen" id="screen-reveal">
-    <div class="eyebrow">Album terungkap</div>
+  <!-- ALBUM (home screen once a guest has joined) -->
+  <div class="screen" id="screen-album">
+    <div class="eyebrow">The Wedding of</div>
     <h2 class="title2">Dhani &amp; Firda</h2>
-    <p class="reveal-count" id="reveal-count"></p>
-    <p class="reveal-note">Pratinjau lokal dari rol kamu. Album lengkap dari semua tamu akan tampil setelah tersambung ke server.</p>
-    <div class="grid" id="reveal-grid"></div>
-    <div style="margin-top:16px;">
-      <div class="toast" id="toast"></div>
-      <button class="btn-primary" id="btn-download">Unduh album</button>
-      <button class="test-reset-btn" id="btn-reset-test">↺ Mode uji · mulai ulang dengan ID baru</button>
+    <p class="album-guest-line" id="album-guest-line"></p>
+    <button class="btn-primary" id="btn-take-photo">Ambil Foto →</button>
+    <p class="album-limit-msg" id="album-limit-msg">Jatah 15 foto kamu sudah habis — terima kasih sudah mengabadikan momen ini! Kamu masih bisa menjelajahi album bersama di bawah.</p>
+    <div class="album-header">
+      <span class="roll-title">Album Bersama</span>
+      <button class="album-refresh-btn" id="btn-album-refresh" title="Muat ulang" aria-label="Muat ulang">⟳</button>
     </div>
+    <div class="album-empty" id="album-empty">Belum ada foto. Jadilah yang pertama memotret!</div>
+    <div class="album-grid" id="album-grid"></div>
+    <button class="test-reset-btn" id="btn-reset-test">↺ Mode uji · mulai ulang</button>
   </div>
 
   <div class="sprocket" id="sprocket-bottom"></div>
+</div>
+
+<!-- FULLSCREEN VIEWER -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lightbox-close" aria-label="Tutup">✕</button>
+  <button class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label="Sebelumnya">‹</button>
+  <div class="lightbox-image" id="lightbox-image"></div>
+  <button class="lightbox-nav lightbox-next" id="lightbox-next" aria-label="Berikutnya">›</button>
+  <div class="lightbox-footer">
+    <span class="lightbox-caption" id="lightbox-caption"></span>
+    <div class="lightbox-actions">
+      <button class="lightbox-action-btn" id="lightbox-download">Unduh</button>
+      <button class="lightbox-action-btn" id="lightbox-share">Bagikan</button>
+    </div>
+    <div class="lightbox-toast" id="lightbox-toast"></div>
+  </div>
 </div>
 
 <script src="config.js"></script>
@@ -300,22 +360,27 @@
   buildSprocket(document.getElementById('sprocket-bottom'));
 
   // ---------- data ----------
-  const PRESETS = [
-    { id: 'kodak', name: 'Kodak Gold 200', mood: 'Hangat, sedikit nostalgia',
-      filter: 'sepia(0.22) saturate(1.45) contrast(1.08) brightness(1.05)',
-      swatch: 'linear-gradient(135deg,#e8a33d 0%,#c4432e 45%,#4a3728 100%)' },
-    { id: 'fuji', name: 'Fujicolor 400', mood: 'Sejuk, hijau natural',
-      filter: 'saturate(1.2) contrast(0.95) hue-rotate(-10deg) brightness(1.02)',
-      swatch: 'linear-gradient(135deg,#4a6b5a 0%,#8fae6b 45%,#1C1815 100%)' },
-    { id: 'cinestill', name: 'CineStill 800T', mood: 'Malam, sinematik, sedikit halo merah',
-      filter: 'contrast(1.18) saturate(1.35) hue-rotate(6deg) brightness(0.94)',
-      swatch: 'linear-gradient(135deg,#2b2540 0%,#c4432e 55%,#12100D 100%)' },
-  ];
-  const FRAME_LIMIT = 15;
+  // One film for the whole wedding — no more per-guest selection.
+  const KODAK_FILTER = 'sepia(0.22) saturate(1.45) contrast(1.08) brightness(1.05)';
+  const KODAK_FILM_ID = 'kodak';
+  const FRAME_LIMIT = 15; // lifetime total per guest, not reusable
   const CAPTURE_MAX_DIM = 1280;
   const CAPTURE_QUALITY = 0.85;
+  const STORAGE_BUCKET = 'wedding-photos';
 
-  // ---------- local identity (Phase 2 will use these to authorize uploads) ----------
+  // Feature-detect baking a CSS filter into a canvas. Supported in Safari
+  // since 15.4 and in Chrome for years; if it's ever missing, the "developed"
+  // upload just falls back to the same bytes as the original rather than
+  // failing the capture.
+  const CANVAS_FILTER_SUPPORTED = (() => {
+    try {
+      return 'filter' in document.createElement('canvas').getContext('2d');
+    } catch (e) {
+      return false;
+    }
+  })();
+
+  // ---------- local identity ----------
   function getOrCreateGuest() {
     let guestId = localStorage.getItem('wc_guest_id');
     let guestSecret = localStorage.getItem('wc_guest_secret');
@@ -336,22 +401,17 @@
     return n;
   }
 
-  // ---------- Supabase (Phase 2) ----------
+  // ---------- Supabase ----------
   // Both config.js and the Supabase library are loaded as plain <script> tags
   // before this one. If either failed to load (offline, config.js not yet
   // deployed, CDN blocked), we fall back to null and the app keeps working
-  // exactly as it did in Phase 1 — nothing here is allowed to block the
-  // camera, capture, or local roll.
+  // in local-only mode — nothing here is allowed to block the camera.
   function createSupabaseClientSafely() {
     const cfg = window.WEDDING_CONFIG;
     const hasLib = !!(window.supabase && typeof window.supabase.createClient === 'function');
     const hasConfig = !!(cfg && typeof cfg.supabaseUrl === 'string' && cfg.supabaseUrl &&
       typeof cfg.supabasePublishableKey === 'string' && cfg.supabasePublishableKey);
     if (!hasLib || !hasConfig) return null;
-    // Guard against any other reason createClient might throw (malformed URL,
-    // library version mismatch, etc.) — this must never be able to break the
-    // rest of the app's initialization, since everything below this point
-    // (event listeners, camera, roll) has to run regardless of Supabase state.
     try {
       return window.supabase.createClient(cfg.supabaseUrl, cfg.supabasePublishableKey);
     } catch (e) {
@@ -364,7 +424,7 @@
   // Registers or re-verifies this device's guest identity with the backend.
   // Fire-and-forget by design: failure here must never block the guest from
   // shooting — it just means their photos stay local-only until the next
-  // successful attempt (e.g. on the next page load).
+  // successful attempt.
   async function registerGuestWithServer() {
     if (!supabaseClient || !state.guestId || !state.guestSecret) return;
     try {
@@ -383,12 +443,100 @@
         state.serverSynced = true;
       }
     } catch (err) {
-      // Offline, DNS failure, CORS misconfig, etc. — stay silent to the guest.
       console.error('guest-register request failed:', err);
     }
   }
 
-  // ---------- IndexedDB (photo blobs) ----------
+  // Updates a photo's sync status in memory and persists it to IndexedDB.
+  // `record` is the full stored object (both blobs included).
+  async function setSyncState(record, syncState) {
+    record.syncState = syncState;
+    const item = state.pendingShots.find(s => s.id === record.id);
+    if (item) item.syncState = syncState;
+    try { await idbPut(record); } catch (e) { console.error('failed to persist sync state:', e); }
+    if (document.getElementById('screen-album').classList.contains('active')) {
+      renderAlbumGrid();
+    }
+  }
+
+  // Uploads one photo: verify the guest, enforce the lifetime limit, reserve
+  // signed Storage upload slots for BOTH the original and Kodak-developed
+  // files, then upload each directly to Storage. Once both succeed, the
+  // shared album (Supabase) becomes the source of truth for this photo, so
+  // the local outbox copy is deleted. Never throws — failures just leave the
+  // photo as 'failed' for the next retry (next load, or regaining connectivity).
+  async function syncPhotoToServer(record) {
+    if (!supabaseClient) return;
+    await setSyncState(record, 'pending');
+    try {
+      const { data, error } = await supabaseClient.functions.invoke('photo-upload', {
+        body: {
+          guestId: state.guestId,
+          guestSecret: state.guestSecret,
+          photoId: record.id,
+          captureSequence: record.seq,
+          capturedAt: new Date(record.capturedAt).toISOString(),
+          width: record.width,
+          height: record.height,
+          fileSize: record.fileSize,
+          mimeType: record.mimeType,
+          guestName: state.guestName
+        }
+      });
+
+      if (error || !data || !data.ok) {
+        console.error('photo-upload rejected:', error || (data && data.error));
+        await setSyncState(record, 'failed');
+        return;
+      }
+
+      await setSyncState(record, 'uploading');
+      const [origResult, devResult] = await Promise.all([
+        supabaseClient.storage.from(STORAGE_BUCKET).uploadToSignedUrl(
+          data.originalStoragePath, data.originalToken, record.originalBlob,
+          { contentType: record.mimeType || 'image/jpeg', upsert: true }
+        ),
+        supabaseClient.storage.from(STORAGE_BUCKET).uploadToSignedUrl(
+          data.developedStoragePath, data.developedToken, record.developedBlob,
+          { contentType: record.mimeType || 'image/jpeg', upsert: true }
+        )
+      ]);
+
+      if (origResult.error || devResult.error) {
+        console.error('storage upload failed:', origResult.error || devResult.error);
+        await setSyncState(record, 'failed');
+        return;
+      }
+
+      state.pendingShots = state.pendingShots.filter(s => s.id !== record.id);
+      try { if (record.developedUrl) URL.revokeObjectURL(record.developedUrl); } catch (e) {}
+      try { await idbDelete(record.id); } catch (e) {}
+
+      if (document.getElementById('screen-album').classList.contains('active')) {
+        goToAlbumScreen({ refresh: true });
+      }
+    } catch (err) {
+      console.error('syncPhotoToServer failed:', err);
+      try { await setSyncState(record, 'failed'); } catch (e2) {}
+    }
+  }
+
+  // Re-attempts every photo that isn't confirmed synced yet. Safe to call
+  // repeatedly — the backend treats the same photo ID as an idempotent retry.
+  function retryPendingUploads() {
+    if (!supabaseClient) return;
+    state.pendingShots
+      .filter(s => s.syncState && s.syncState !== 'synced')
+      .forEach(s => { syncPhotoToServer(s); });
+  }
+
+  window.addEventListener('online', () => {
+    try { retryPendingUploads(); } catch (e) { console.error(e); }
+  });
+
+  // ---------- IndexedDB: temporary local outbox only ----------
+  // Once a photo is confirmed synced, its record is deleted here — the
+  // shared Supabase album is the permanent gallery, not this store.
   const DB_NAME = 'wedding-cam-db';
   const DB_VERSION = 1;
   const STORE = 'photos';
@@ -450,9 +598,9 @@
     });
   }
 
-  // Testing-only utility: wipe every locally stored photo and every wc_* localStorage
-  // key (guest id/secret, name, preset, roll status, sequence counter), so a fresh
-  // reload behaves exactly like a brand-new guest opening the app for the first time.
+  // Testing-only utility: wipe local guest identity/session and any un-synced
+  // local outbox photos. Never touches Supabase — already-uploaded shared
+  // album photos are completely unaffected.
   async function resetAllLocalData() {
     try { if (typeof stopCamera === 'function') await stopCamera(); } catch (e) {}
     try { await idbClearAll(); } catch (e) {}
@@ -462,7 +610,23 @@
   }
 
   // ---------- state ----------
-  const state = { guestId: null, guestSecret: null, guestName: '', preset: null, shots: [], facingMode: 'environment', rollStatus: 'active', flashOn: false, torchSupported: false, serverSynced: false, demoSeconds: 8 };
+  const state = {
+    guestId: null,
+    guestSecret: null,
+    guestName: '',
+    pendingShots: [],       // local outbox: captured but not yet confirmed synced
+    albumServerItems: [],   // last fetched shared-album rows
+    usedCount: 0,           // server-confirmed count + local pending count
+    facingMode: 'environment',
+    flashOn: false,
+    torchSupported: false,
+    serverSynced: false,
+    zoomLevel: '1',        // '0.5' | '1' | '2' — which button is currently active
+    zoomMethod: null,      // 'device' (switched physical camera) | 'constraint' (same stream, track zoom) | null
+    wideDeviceId: null,    // set only when a distinct ultra-wide rear camera was detected this session
+    teleDeviceId: null,    // set only when a distinct telephoto rear camera was detected this session
+    trackZoomMax: null     // set only when the active track itself exposes a usable zoom range
+  };
 
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -479,43 +643,11 @@
   btnJoin.addEventListener('click', () => {
     state.guestName = state.guestName.trim();
     localStorage.setItem('wc_guest_name', state.guestName);
-    showScreen('screen-preset');
-    // Best-effort background sync — deliberately called after navigation and
-    // wrapped so nothing about the Supabase call path can ever block or
-    // break moving the guest forward to the next screen.
-    try { registerGuestWithServer(); } catch (e) { console.error(e); }
-  });
-
-  // ---------- PRESET ----------
-  const presetList = document.getElementById('preset-list');
-  const btnPreset = document.getElementById('btn-preset');
-  PRESETS.forEach(p => {
-    const card = document.createElement('button');
-    card.className = 'preset-card';
-    card.innerHTML = `
-      <div class="preset-swatch" style="background:${p.swatch}; filter:${p.filter};"></div>
-      <div>
-        <div class="preset-name">${p.name}</div>
-        <div class="preset-mood">${p.mood}</div>
-      </div>
-      <div class="preset-check" style="display:none;">✓</div>
-    `;
-    card.addEventListener('click', () => {
-      state.preset = p;
-      document.querySelectorAll('.preset-card').forEach(c => {
-        c.classList.remove('active');
-        c.querySelector('.preset-check').style.display = 'none';
-      });
-      card.classList.add('active');
-      card.querySelector('.preset-check').style.display = 'block';
-      btnPreset.disabled = false;
-    });
-    presetList.appendChild(card);
-  });
-  btnPreset.addEventListener('click', () => {
-    localStorage.setItem('wc_preset_id', state.preset.id);
     showScreen('screen-camera');
     enterCameraScreen();
+    // Best-effort background sync — called after navigation so nothing about
+    // the Supabase call path can ever block or break moving the guest forward.
+    try { registerGuestWithServer(); } catch (e) { console.error(e); }
   });
 
   // ---------- CAMERA ----------
@@ -526,23 +658,31 @@
   const previewLabel = document.getElementById('preview-label');
   const flashEl = document.getElementById('flash');
   const btnShutter = document.getElementById('btn-shutter');
-  const btnFinishEarly = document.getElementById('btn-finish-early');
+  const btnBackAlbum = document.getElementById('btn-back-album');
   const btnFlip = document.getElementById('btn-flip');
   const btnFlash = document.getElementById('btn-flash');
-  const rollFullMsg = document.getElementById('roll-full-msg');
-  const rollCount = document.getElementById('roll-count');
-  const rollEmpty = document.getElementById('roll-empty');
-  const rollStrip = document.getElementById('roll-strip');
+  const zoomRow = document.getElementById('zoom-row');
+  const zoomWideBtn = document.getElementById('zoom-wide');
+  const zoom1xBtn = document.getElementById('zoom-1x');
+  const zoomTeleBtn = document.getElementById('zoom-tele');
+  const camStatusMsg = document.getElementById('cam-status-msg');
   let camStream = null;
   let capturing = false;
   let flipping = false;
   let cameraRequestId = 0;
 
   function enterCameraScreen() {
-    camCaption.textContent = state.guestName + ' · ' + state.preset.name;
-    renderRoll();
+    camCaption.textContent = state.guestName + ' · Kodak Gold 200';
+    hideCamStatus();
     updateFrameCounter();
     startCamera(state.facingMode);
+  }
+
+  function showCamStatus(message) {
+    camStatusMsg.textContent = message;
+  }
+  function hideCamStatus() {
+    camStatusMsg.textContent = '';
   }
 
   // Resolves true once the video element actually has real frame dimensions from
@@ -561,8 +701,6 @@
       }
       video.addEventListener('loadedmetadata', onReady);
       video.addEventListener('loadeddata', onReady);
-      // Safety net: some mobile browsers are inconsistent about firing these events
-      // promptly. Fall back to checking the actual state rather than assuming success.
       setTimeout(() => {
         if (settled) return;
         settled = true;
@@ -577,9 +715,6 @@
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  // Best-effort: if the outgoing stream's track supports torch, make sure it's off
-  // before we stop the track. Torch is normally only ever on for the brief moment
-  // during a capture, but this is a safety net against leaving it stuck on.
   async function turnOffTorchIfSupported(stream) {
     try {
       const track = stream && stream.getVideoTracks()[0];
@@ -590,7 +725,8 @@
     } catch (e) {}
   }
 
-  async function startCamera(preferredFacing) {
+  async function startCamera(preferredFacing, opts) {
+    opts = opts || {};
     const requestId = ++cameraRequestId;
 
     try {
@@ -599,11 +735,6 @@
         return;
       }
 
-      // Fully release the current camera device before requesting a new one.
-      // On iPhone Safari especially, requesting a second camera stream while the
-      // first is still active can hang the request or return a stream that never
-      // produces real video frames — so stop-and-clear has to happen first, even
-      // though it means a brief moment with no live preview during the switch.
       if (camStream) {
         await turnOffTorchIfSupported(camStream);
         camStream.getTracks().forEach(t => t.stop());
@@ -612,14 +743,16 @@
       camVideo.pause();
       camVideo.srcObject = null;
       camVideo.style.display = 'none';
-      // Show the warm placeholder (not a hard black box) during the brief gap.
       camPlaceholder.style.display = 'block';
       previewLabel.style.display = 'none';
 
       let stream;
       try {
+        const videoConstraint = opts.deviceId
+          ? { deviceId: { exact: opts.deviceId } }
+          : { facingMode: { ideal: preferredFacing } };
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: preferredFacing } },
+          video: videoConstraint,
           audio: false
         });
       } catch (e) {
@@ -633,7 +766,6 @@
         }
       }
 
-      // A newer flip superseded this request while we were waiting on permission/hardware.
       if (requestId !== cameraRequestId) {
         stream.getTracks().forEach(t => t.stop());
         return;
@@ -644,21 +776,25 @@
       const settings = (track && track.getSettings) ? track.getSettings() : {};
       state.facingMode = settings.facingMode || preferredFacing;
 
-      // Torch capability is specific to this track — always re-evaluated fresh,
-      // never assumed to carry over from the camera we just switched away from.
+      // A "normal" start (no explicit lens override) is always the 1x
+      // baseline — flipping camera or a fresh load should never carry over
+      // a zoom level from a previous stream.
+      if (!opts.deviceId) {
+        state.zoomLevel = '1';
+        state.zoomMethod = null;
+      }
+
       const caps = (track && track.getCapabilities) ? track.getCapabilities() : null;
       state.torchSupported = !!(caps && caps.torch);
       updateFlashButtonState();
+      await refreshZoomCapabilities(track);
 
       camVideo.srcObject = camStream;
       const ready = await waitForVideoReady(camVideo);
 
-      // Could have been superseded by a newer flip while waiting for metadata.
       if (requestId !== cameraRequestId) return;
 
       if (!ready) {
-        // The stream never produced usable video — treat it as a failure rather
-        // than leaving a black/frozen box on screen.
         if (camStream === stream) {
           stream.getTracks().forEach(t => t.stop());
           camStream = null;
@@ -674,8 +810,6 @@
       camPlaceholder.style.display = 'none';
       previewLabel.style.display = 'none';
     } catch (err) {
-      // Catch-all: never let an unexpected error strand the UI with a stuck
-      // camera and a permanently-disabled flip button.
       if (requestId === cameraRequestId) {
         if (camStream) {
           try { camStream.getTracks().forEach(t => t.stop()); } catch (e2) {}
@@ -715,6 +849,11 @@
     }
   });
 
+  btnBackAlbum.addEventListener('click', async () => {
+    await stopCamera();
+    goToAlbumScreen({ refresh: false });
+  });
+
   function updateFlashButtonState() {
     btnFlash.classList.toggle('active', state.flashOn);
   }
@@ -724,17 +863,113 @@
     updateFlashButtonState();
   });
 
-  function updateFrameCounter() {
-    const active = state.shots.length;
-    const available = Math.max(0, FRAME_LIMIT - active);
-    frameNum.textContent = available + '/' + FRAME_LIMIT + ' tersisa';
-    const full = available <= 0;
-    btnShutter.disabled = full || capturing;
-    rollFullMsg.style.display = full ? 'block' : 'none';
-    return available;
+  // Re-detects available lens options for the CURRENT track, every time a
+  // camera starts. Never reuses capability info from a previous stream —
+  // same discipline as torch detection above. Best-effort only: many
+  // Android devices never expose distinct rear cameras via enumerateDevices
+  // at all, in which case both .5x and 2x simply stay hidden.
+  async function refreshZoomCapabilities(track) {
+    state.wideDeviceId = null;
+    state.teleDeviceId = null;
+    state.trackZoomMax = null;
+
+    if (state.facingMode !== 'environment') {
+      updateZoomControls();
+      return;
+    }
+
+    try {
+      const caps = track && track.getCapabilities ? track.getCapabilities() : null;
+      if (caps && caps.zoom && typeof caps.zoom.max === 'number' && caps.zoom.max >= 1.8) {
+        state.trackZoomMax = caps.zoom.max;
+      }
+    } catch (e) {}
+
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        devices.filter(d => d.kind === 'videoinput').forEach(d => {
+          const label = (d.label || '').toLowerCase();
+          if (!state.wideDeviceId && /(ultra.?wide|0\.5x|wide angle)/.test(label)) {
+            state.wideDeviceId = d.deviceId;
+          }
+          if (!state.teleDeviceId && /(tele(photo)?|2x)/.test(label)) {
+            state.teleDeviceId = d.deviceId;
+          }
+        });
+      }
+    } catch (e) {}
+
+    updateZoomControls();
   }
 
-  function captureFrame() {
+  function updateZoomControls() {
+    const isRear = state.facingMode === 'environment';
+    const showWide = isRear && !!state.wideDeviceId;
+    const showTele = isRear && (!!state.teleDeviceId || !!state.trackZoomMax);
+    // If neither alternate lens is available, hide the whole row — a lone
+    // 1x button is a control that does nothing.
+    zoomRow.style.display = (showWide || showTele) ? 'flex' : 'none';
+    zoomWideBtn.style.display = showWide ? 'inline-block' : 'none';
+    zoomTeleBtn.style.display = showTele ? 'inline-block' : 'none';
+    [zoomWideBtn, zoom1xBtn, zoomTeleBtn].forEach(b => b.classList.remove('active'));
+    const activeBtn = state.zoomLevel === '0.5' ? zoomWideBtn : (state.zoomLevel === '2' ? zoomTeleBtn : zoom1xBtn);
+    activeBtn.classList.add('active');
+  }
+
+  async function setZoomLevel(level) {
+    if (!camStream || state.zoomLevel === level) return;
+    const track = camStream.getVideoTracks()[0];
+    try {
+      if (level === '1') {
+        if (state.zoomMethod === 'device') {
+          await startCamera(state.facingMode);
+        } else if (track) {
+          try { await track.applyConstraints({ advanced: [{ zoom: 1 }] }); } catch (e) {}
+        }
+        state.zoomLevel = '1';
+        state.zoomMethod = null;
+      } else if (level === '0.5' && state.wideDeviceId) {
+        await startCamera(state.facingMode, { deviceId: state.wideDeviceId });
+        state.zoomLevel = '0.5';
+        state.zoomMethod = 'device';
+      } else if (level === '2') {
+        if (state.teleDeviceId) {
+          await startCamera(state.facingMode, { deviceId: state.teleDeviceId });
+          state.zoomLevel = '2';
+          state.zoomMethod = 'device';
+        } else if (state.trackZoomMax && track) {
+          await track.applyConstraints({ advanced: [{ zoom: 2 }] });
+          state.zoomLevel = '2';
+          state.zoomMethod = 'constraint';
+        }
+      }
+    } catch (e) {
+      // A failed device switch already leaves startCamera's own error
+      // handling in charge of the viewfinder; just don't let our zoom
+      // bookkeeping drift out of sync with reality.
+      console.error('zoom switch failed:', e);
+      state.zoomLevel = '1';
+      state.zoomMethod = null;
+    }
+    updateZoomControls();
+  }
+
+  zoomWideBtn.addEventListener('click', () => setZoomLevel('0.5'));
+  zoom1xBtn.addEventListener('click', () => setZoomLevel('1'));
+  zoomTeleBtn.addEventListener('click', () => setZoomLevel('2'));
+
+  function updateFrameCounter() {
+    const remaining = Math.max(0, FRAME_LIMIT - state.usedCount);
+    frameNum.textContent = remaining + '/' + FRAME_LIMIT + ' tersisa';
+    btnShutter.disabled = remaining <= 0 || capturing;
+    return remaining;
+  }
+
+  // Captures the current frame twice: once untouched (the archival original)
+  // and once redrawn through the Kodak filter (the developed version shown
+  // everywhere in the app). Both come from the exact same captured frame.
+  function captureAndDevelop() {
     return new Promise((resolve, reject) => {
       const vw = camVideo.videoWidth;
       const vh = camVideo.videoHeight;
@@ -746,22 +981,44 @@
         tw = Math.round(vw * scale);
         th = Math.round(vh * scale);
       }
-      const canvas = document.createElement('canvas');
-      canvas.width = tw;
-      canvas.height = th;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(camVideo, 0, 0, tw, th);
-      canvas.toBlob(blob => {
-        if (blob) resolve(blob); else reject(new Error('toBlob failed'));
+
+      const originalCanvas = document.createElement('canvas');
+      originalCanvas.width = tw;
+      originalCanvas.height = th;
+      originalCanvas.getContext('2d').drawImage(camVideo, 0, 0, tw, th);
+
+      originalCanvas.toBlob(originalBlob => {
+        if (!originalBlob) { reject(new Error('original toBlob failed')); return; }
+
+        if (!CANVAS_FILTER_SUPPORTED) {
+          resolve({ originalBlob, developedBlob: originalBlob, width: tw, height: th });
+          return;
+        }
+
+        const devCanvas = document.createElement('canvas');
+        devCanvas.width = tw;
+        devCanvas.height = th;
+        const dctx = devCanvas.getContext('2d');
+        try { dctx.filter = KODAK_FILTER; } catch (e) {}
+        dctx.drawImage(originalCanvas, 0, 0);
+
+        devCanvas.toBlob(developedBlob => {
+          resolve({
+            originalBlob,
+            developedBlob: developedBlob || originalBlob,
+            width: tw,
+            height: th
+          });
+        }, 'image/jpeg', CAPTURE_QUALITY);
       }, 'image/jpeg', CAPTURE_QUALITY);
     });
   }
 
   btnShutter.addEventListener('click', async () => {
-    const active = state.shots.length;
-    if (capturing || active >= FRAME_LIMIT || !camStream) return;
+    if (capturing || !camStream || state.usedCount >= FRAME_LIMIT) return;
     capturing = true;
     btnShutter.disabled = true;
+    hideCamStatus();
 
     const isFront = state.facingMode === 'user';
     const wantFlash = state.flashOn;
@@ -770,7 +1027,6 @@
 
     try {
       if (wantFlash && !isFront && state.torchSupported && track) {
-        // Real hardware torch: turn on, give exposure a moment to react, capture, then off.
         try {
           await track.applyConstraints({ advanced: [{ torch: true }] });
           torchWasEnabled = true;
@@ -780,175 +1036,327 @@
         flashEl.classList.add('on');
         if (torchWasEnabled) await wait(280);
       } else if (wantFlash && isFront) {
-        // Screen-flash fallback: brighten the screen and capture while it's still lit,
-        // so it can act as genuine fill light on the guest's face.
         flashEl.classList.add('on');
         await wait(220);
       } else {
-        // Flash off, or rear camera without torch support: a brief cosmetic pulse only —
-        // no illumination is actually happening, so no stabilization delay is added.
         flashEl.classList.add('on');
       }
 
-      const blob = await captureFrame();
+      const captured = await captureAndDevelop();
       const record = {
         id: crypto.randomUUID(),
         guestId: state.guestId,
         seq: getNextSeq(),
-        filmId: state.preset.id,
-        blob: blob,
-        capturedAt: Date.now()
+        filmId: KODAK_FILM_ID,
+        originalBlob: captured.originalBlob,
+        developedBlob: captured.developedBlob,
+        width: captured.width,
+        height: captured.height,
+        fileSize: captured.originalBlob.size,
+        mimeType: captured.originalBlob.type || 'image/jpeg',
+        capturedAt: Date.now(),
+        syncState: 'local'
       };
       await idbPut(record);
-      state.shots.push(Object.assign({}, record, { url: URL.createObjectURL(blob) }));
-      renderRoll();
-    } catch (err) {
-      rollFullMsg.textContent = 'Gagal menyimpan foto, coba lagi.';
-      rollFullMsg.style.display = 'block';
-      setTimeout(() => { rollFullMsg.textContent = 'Rol kamu penuh. Hapus foto untuk memotret lagi.'; }, 2500);
-    } finally {
+      const developedUrl = URL.createObjectURL(captured.developedBlob);
+      state.pendingShots.push(Object.assign({}, record, { developedUrl }));
+      state.usedCount += 1;
+
       if (torchWasEnabled && track) {
         try { await track.applyConstraints({ advanced: [{ torch: false }] }); } catch (e) {}
       }
       setTimeout(() => flashEl.classList.remove('on'), 120);
+
+      await stopCamera();
+      goToAlbumScreen({ refresh: true });
+      // Fire-and-forget: uploading happens in the background and must never
+      // hold up returning to the album or block the next shot.
+      syncPhotoToServer(record);
+    } catch (err) {
+      console.error('capture failed:', err);
+      showCamStatus('Gagal mengambil foto, coba lagi.');
+      if (torchWasEnabled && track) {
+        try { await track.applyConstraints({ advanced: [{ torch: false }] }); } catch (e) {}
+      }
+      setTimeout(() => flashEl.classList.remove('on'), 120);
+    } finally {
       capturing = false;
-      updateFrameCounter();
+      btnShutter.disabled = false;
     }
   });
 
-  btnFinishEarly.addEventListener('click', async () => {
-    if (state.shots.length === 0) return;
-    await stopCamera();
-    state.rollStatus = 'finished';
-    localStorage.setItem('wc_roll_status', 'finished');
-    localStorage.setItem('wc_finished_at', String(Date.now()));
-    enterDoneScreen();
-  });
+  // ---------- ALBUM ----------
+  const albumGuestLine = document.getElementById('album-guest-line');
+  const btnTakePhoto = document.getElementById('btn-take-photo');
+  const albumLimitMsg = document.getElementById('album-limit-msg');
+  const albumGrid = document.getElementById('album-grid');
+  const albumEmpty = document.getElementById('album-empty');
+  const btnAlbumRefresh = document.getElementById('btn-album-refresh');
 
-  function renderRoll() {
-    rollCount.textContent = state.shots.length + ' foto';
-    rollStrip.innerHTML = '';
-    if (state.shots.length === 0) {
-      rollEmpty.style.display = 'block';
-      rollStrip.style.display = 'none';
-      return;
-    }
-    rollEmpty.style.display = 'none';
-    rollStrip.style.display = 'flex';
-    state.shots.forEach(shot => {
-      const wrap = document.createElement('div');
-      wrap.className = 'roll-thumb-wrap';
-      wrap.innerHTML = `
-        <button class="roll-thumb" style="background-image:url(${shot.url});" data-id="${shot.id}" aria-label="Foto"></button>
-        <div class="roll-confirm" data-id="${shot.id}">
-          <span>Hapus?</span>
-          <button class="roll-confirm-yes" data-id="${shot.id}">Ya</button>
-          <button class="roll-confirm-no" data-id="${shot.id}">Batal</button>
-        </div>
-      `;
-      rollStrip.appendChild(wrap);
-    });
+  function pendingLocalUnsyncedCount() {
+    return state.pendingShots.filter(s => s.syncState !== 'synced').length;
   }
 
-  rollStrip.addEventListener('click', async (e) => {
-    const thumbBtn = e.target.closest('.roll-thumb');
-    const yesBtn = e.target.closest('.roll-confirm-yes');
-    const noBtn = e.target.closest('.roll-confirm-no');
-    document.querySelectorAll('.roll-confirm').forEach(el => { el.style.display = 'none'; });
-    if (thumbBtn) {
-      const id = thumbBtn.dataset.id;
-      const confirmEl = rollStrip.querySelector(`.roll-confirm[data-id="${id}"]`);
-      if (confirmEl) confirmEl.style.display = 'flex';
-    } else if (yesBtn) {
-      await deletePhoto(yesBtn.dataset.id);
-    }
-  });
-
-  async function deletePhoto(id) {
+  async function fetchSharedAlbum() {
+    if (!supabaseClient) return [];
     try {
-      await idbDelete(id);
-    } catch (e) {}
-    const shot = state.shots.find(s => s.id === id);
-    if (shot) URL.revokeObjectURL(shot.url);
-    state.shots = state.shots.filter(s => s.id !== id);
-    renderRoll();
-    updateFrameCounter();
+      const { data, error } = await supabaseClient
+        .from('photos')
+        .select('id, guest_name, developed_storage_path, captured_at')
+        .is('deleted_at', null)
+        .order('captured_at', { ascending: false })
+        .limit(200);
+      if (error) { console.error('fetchSharedAlbum error:', error); return []; }
+      return (data || []).map(row => ({
+        id: row.id,
+        guestName: row.guest_name,
+        url: supabaseClient.storage.from(STORAGE_BUCKET).getPublicUrl(row.developed_storage_path).data.publicUrl,
+        capturedAt: row.captured_at
+      }));
+    } catch (e) {
+      console.error('fetchSharedAlbum failed:', e);
+      return [];
+    }
   }
 
-  // ---------- DONE ----------
-  const doneDesc = document.getElementById('done-desc');
-  const countdownPill = document.getElementById('countdown-pill');
-  const developedStrip = document.getElementById('developed-strip');
-  let countdownTimer = null;
-
-  const DEMO_REVEAL_SECONDS = 8;
-
-  function renderDevelopedStrip() {
-    developedStrip.innerHTML = '';
-    state.shots.forEach(shot => {
-      const thumb = document.createElement('div');
-      thumb.className = 'developed-thumb';
-      thumb.style.backgroundImage = `url(${shot.url})`;
-      thumb.style.filter = state.preset.filter;
-      developedStrip.appendChild(thumb);
-    });
+  async function fetchUsedCount() {
+    if (!supabaseClient || !state.guestId) return null;
+    try {
+      const { count, error } = await supabaseClient
+        .from('photos')
+        .select('id', { count: 'exact', head: true })
+        .eq('guest_id', state.guestId)
+        .is('deleted_at', null);
+      if (error) { console.error('fetchUsedCount error:', error); return null; }
+      return count || 0;
+    } catch (e) {
+      console.error('fetchUsedCount failed:', e);
+      return null;
+    }
   }
 
-  function enterDoneScreen() {
-    showScreen('screen-done');
-    doneDesc.textContent = state.shots.length + ' foto selesai dipotret. Rol kamu sedang dikembangkan.';
-    renderDevelopedStrip();
-    const finishedAt = parseInt(localStorage.getItem('wc_finished_at') || '0', 10);
-    const elapsedSeconds = finishedAt ? Math.floor((Date.now() - finishedAt) / 1000) : 0;
-    state.demoSeconds = Math.max(0, DEMO_REVEAL_SECONDS - elapsedSeconds);
-    tickCountdown();
+  function renderAlbumGuestLine() {
+    const remaining = Math.max(0, FRAME_LIMIT - state.usedCount);
+    albumGuestLine.textContent = 'Halo, ' + (state.guestName || 'Tamu') + ' · ' + state.usedCount + '/' + FRAME_LIMIT + ' foto';
+    if (remaining <= 0) {
+      btnTakePhoto.style.display = 'none';
+      albumLimitMsg.style.display = 'block';
+    } else {
+      btnTakePhoto.style.display = 'block';
+      albumLimitMsg.style.display = 'none';
+    }
   }
 
-  function tickCountdown() {
-    countdownPill.textContent = 'Terungkap dalam 0:' + String(state.demoSeconds).padStart(2, '0') + ' (demo)';
-    if (state.demoSeconds <= 0) {
-      enterRevealScreen();
+  let lastRenderedAlbumItems = [];
+
+  function renderAlbumGrid() {
+    const pendingItems = state.pendingShots
+      .filter(s => s.syncState !== 'synced')
+      .map(s => ({
+        id: s.id,
+        guestName: state.guestName,
+        url: s.developedUrl,
+        capturedAt: new Date(s.capturedAt).toISOString(),
+        pendingLocal: true
+      }));
+
+    const seen = new Set();
+    const merged = [];
+    pendingItems.forEach(item => { if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); } });
+    (state.albumServerItems || []).forEach(item => { if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); } });
+    merged.sort((a, b) => new Date(b.capturedAt) - new Date(a.capturedAt));
+    lastRenderedAlbumItems = merged;
+
+    albumGrid.innerHTML = '';
+    if (merged.length === 0) {
+      albumEmpty.style.display = 'block';
+      albumGrid.style.display = 'none';
       return;
     }
-    countdownTimer = setTimeout(() => {
-      state.demoSeconds -= 1;
-      tickCountdown();
-    }, 1000);
-  }
-
-  // ---------- REVEAL ----------
-  const revealCount = document.getElementById('reveal-count');
-  const revealGrid = document.getElementById('reveal-grid');
-  const toast = document.getElementById('toast');
-  const btnDownload = document.getElementById('btn-download');
-
-  function enterRevealScreen() {
-    showScreen('screen-reveal');
-    revealCount.textContent = state.shots.length + ' foto dari rol kamu';
-    revealGrid.innerHTML = '';
-    state.shots.forEach(shot => {
-      const item = document.createElement('div');
-      item.innerHTML = `
-        <div class="grid-item-photo" style="background-image:url(${shot.url}); filter:${state.preset.filter};"></div>
-        <div class="grid-item-caption">${state.guestName || 'Kamu'}</div>
-      `;
-      revealGrid.appendChild(item);
+    albumEmpty.style.display = 'none';
+    albumGrid.style.display = 'grid';
+    merged.forEach(item => {
+      const cell = document.createElement('div');
+      cell.className = 'album-item' + (item.pendingLocal ? ' pending-local' : '');
+      cell.dataset.id = item.id;
+      cell.style.backgroundImage = `url(${item.url})`;
+      cell.innerHTML = `<div class="album-item-name">${item.guestName || 'Tamu'}</div>`;
+      albumGrid.appendChild(cell);
     });
   }
 
-  btnDownload.addEventListener('click', () => {
-    toast.textContent = 'Unduh akan aktif setelah tersambung ke Supabase';
+  // Shows the album screen immediately using whatever's already known
+  // locally (instant feel), then refreshes from the server in the background
+  // unless explicitly told not to (e.g. just backing out of the camera with
+  // nothing new to show).
+  async function goToAlbumScreen(opts) {
+    opts = opts || {};
+    showScreen('screen-album');
+    renderAlbumGuestLine();
+    renderAlbumGrid();
+
+    if (opts.refresh !== false && supabaseClient) {
+      try {
+        const [serverItems, serverUsed] = await Promise.all([fetchSharedAlbum(), fetchUsedCount()]);
+        state.albumServerItems = serverItems;
+        if (serverUsed !== null) {
+          state.usedCount = serverUsed + pendingLocalUnsyncedCount();
+        }
+      } catch (e) {
+        console.error('goToAlbumScreen refresh failed:', e);
+      }
+      renderAlbumGuestLine();
+      renderAlbumGrid();
+    }
+  }
+
+  btnTakePhoto.addEventListener('click', () => {
+    if (state.usedCount >= FRAME_LIMIT) return;
+    showScreen('screen-camera');
+    enterCameraScreen();
   });
 
-  // ---------- TEST-ONLY: reset local data and start over as a new guest ----------
+  btnAlbumRefresh.addEventListener('click', () => {
+    goToAlbumScreen({ refresh: true });
+  });
+
+  // ---------- FULLSCREEN VIEWER ----------
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImage = document.getElementById('lightbox-image');
+  const lightboxCaption = document.getElementById('lightbox-caption');
+  const lightboxClose = document.getElementById('lightbox-close');
+  const lightboxPrev = document.getElementById('lightbox-prev');
+  const lightboxNext = document.getElementById('lightbox-next');
+  const lightboxDownload = document.getElementById('lightbox-download');
+  const lightboxShare = document.getElementById('lightbox-share');
+  const lightboxToast = document.getElementById('lightbox-toast');
+  let lightboxItems = [];
+  let lightboxIndex = -1;
+
+  function renderLightbox() {
+    const item = lightboxItems[lightboxIndex];
+    if (!item) { closeLightbox(); return; }
+    lightboxImage.style.backgroundImage = `url(${item.url})`;
+    lightboxCaption.textContent = item.guestName || 'Tamu';
+    lightboxToast.textContent = '';
+    lightboxPrev.disabled = lightboxIndex <= 0;
+    lightboxNext.disabled = lightboxIndex >= lightboxItems.length - 1;
+  }
+
+  function openLightbox(items, index) {
+    lightboxItems = items;
+    lightboxIndex = index;
+    renderLightbox();
+    lightbox.classList.add('active');
+  }
+
+  function closeLightbox() {
+    lightbox.classList.remove('active');
+    lightboxItems = [];
+    lightboxIndex = -1;
+  }
+
+  albumGrid.addEventListener('click', (e) => {
+    const cell = e.target.closest('.album-item');
+    if (!cell) return;
+    const id = cell.dataset.id;
+    const index = lastRenderedAlbumItems.findIndex(it => it.id === id);
+    if (index >= 0) openLightbox(lastRenderedAlbumItems, index);
+  });
+
+  lightboxClose.addEventListener('click', closeLightbox);
+  lightboxPrev.addEventListener('click', () => {
+    if (lightboxIndex > 0) { lightboxIndex--; renderLightbox(); }
+  });
+  lightboxNext.addEventListener('click', () => {
+    if (lightboxIndex < lightboxItems.length - 1) { lightboxIndex++; renderLightbox(); }
+  });
+
+  // Fetch-then-blob-download rather than a plain <a download> on a
+  // cross-origin Supabase Storage URL — many browsers only honor the
+  // download attribute (forcing a save rather than navigating) for
+  // same-origin or blob: URLs, so this is the reliable path for both
+  // synced (Storage) and not-yet-synced (local blob) photos alike.
+  async function downloadImageUrl(url, filename) {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
+      return true;
+    } catch (e) {
+      console.error('download failed:', e);
+      try { window.open(url, '_blank'); } catch (e2) {}
+      return false;
+    }
+  }
+
+  lightboxDownload.addEventListener('click', async () => {
+    const item = lightboxItems[lightboxIndex];
+    if (!item) return;
+    const filename = 'dhani-firda-' + item.id.slice(0, 8) + '.jpg';
+    lightboxToast.textContent = 'Menyiapkan unduhan…';
+    const ok = await downloadImageUrl(item.url, filename);
+    lightboxToast.textContent = ok ? 'Foto diunduh' : 'Membuka foto di tab baru';
+  });
+
+  lightboxShare.addEventListener('click', async () => {
+    const item = lightboxItems[lightboxIndex];
+    if (!item) return;
+    lightboxToast.textContent = '';
+    const filename = 'dhani-firda-' + item.id.slice(0, 8) + '.jpg';
+    const shareText = item.guestName ? 'Foto oleh ' + item.guestName : undefined;
+    try {
+      if (navigator.share) {
+        let shared = false;
+        if (navigator.canShare) {
+          try {
+            const res = await fetch(item.url);
+            const blob = await res.blob();
+            const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
+            if (navigator.canShare({ files: [file] })) {
+              await navigator.share({ files: [file], title: 'Dhani & Firda', text: shareText });
+              shared = true;
+            }
+          } catch (e) {
+            // Fall through to URL-only share below.
+          }
+        }
+        if (!shared) {
+          await navigator.share({ title: 'Dhani & Firda', text: shareText, url: item.url });
+        }
+        lightboxToast.textContent = 'Dibagikan';
+        return;
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(item.url);
+        lightboxToast.textContent = 'Tautan foto disalin';
+        return;
+      }
+      // Last resort so sharing never fails silently.
+      await downloadImageUrl(item.url, filename);
+      lightboxToast.textContent = 'Foto diunduh — bagikan manual dari galeri';
+    } catch (err) {
+      if (err && err.name === 'AbortError') return; // guest cancelled the share sheet
+      console.error('share failed:', err);
+      lightboxToast.textContent = 'Gagal membagikan, coba unduh saja';
+    }
+  });
+
+  // ---------- TEST-ONLY: reset local identity/session and start over ----------
   const btnResetTest = document.getElementById('btn-reset-test');
   btnResetTest.addEventListener('click', async () => {
-    const confirmed = window.confirm('Mode uji: ini akan menghapus semua foto dan data tamu di perangkat ini, lalu memulai dari awal dengan ID baru. Lanjutkan?');
+    const confirmed = window.confirm('Mode uji: ini akan menghapus identitas tamu di perangkat ini (bukan foto yang sudah diunggah ke album bersama) dan memulai dari awal dengan ID baru. Lanjutkan?');
     if (!confirmed) return;
     btnResetTest.disabled = true;
-    if (countdownTimer) { clearTimeout(countdownTimer); countdownTimer = null; }
     await stopCamera();
-    state.shots.forEach(s => { try { URL.revokeObjectURL(s.url); } catch (e) {} });
+    state.pendingShots.forEach(s => { try { if (s.developedUrl) URL.revokeObjectURL(s.developedUrl); } catch (e) {} });
     await resetAllLocalData();
     window.location.reload();
   });
@@ -961,33 +1369,27 @@
 
     try {
       const records = await idbGetAllForGuest(state.guestId);
-      state.shots = records.map(r => Object.assign({}, r, { url: URL.createObjectURL(r.blob) }));
+      state.pendingShots = records
+        .filter(r => r.syncState !== 'synced')
+        .map(r => Object.assign({}, r, {
+          developedUrl: URL.createObjectURL(r.developedBlob || r.originalBlob)
+        }));
     } catch (e) {
-      state.shots = [];
+      state.pendingShots = [];
     }
+    state.usedCount = pendingLocalUnsyncedCount();
 
     const savedName = localStorage.getItem('wc_guest_name');
-    const savedPresetId = localStorage.getItem('wc_preset_id');
-    const savedPreset = savedPresetId ? PRESETS.find(p => p.id === savedPresetId) : null;
-    const savedStatus = localStorage.getItem('wc_roll_status') || 'active';
 
-    if (savedName && savedPreset) {
+    if (savedName) {
       state.guestName = savedName;
-      state.preset = savedPreset;
-      state.rollStatus = savedStatus;
-
-      if (savedStatus === 'finished') {
-        enterDoneScreen();
-      } else {
-        showScreen('screen-camera');
-        enterCameraScreen();
-      }
+      await goToAlbumScreen({ refresh: true });
 
       // Best-effort background sync, after the guest is already back in the
       // app. Covers both normal returning guests (keeps last_seen_at fresh)
-      // and existing Phase 1 testers whose local identity predates Supabase
-      // entirely — this is what gets them registered without any reset.
+      // and existing testers whose local identity predates this rewrite.
       try { registerGuestWithServer(); } catch (e) { console.error(e); }
+      try { retryPendingUploads(); } catch (e) { console.error(e); }
     }
   }
   init();
