@@ -444,7 +444,7 @@
   // shooting — it just means their photos stay local-only until the next
   // successful attempt.
   async function registerGuestWithServer() {
-    if (!supabaseClient || !state.guestId || !state.guestSecret) return;
+    if (LOCAL_ONLY_MODE || !supabaseClient || !state.guestId || !state.guestSecret) return;
     try {
       const { data, error } = await supabaseClient.functions.invoke('guest-register', {
         body: {
@@ -578,10 +578,31 @@
   async function idbPut(record) {
     const db = await openDB();
     return new Promise((resolve, reject) => {
+      let settled = false;
       const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put(record);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      const store = tx.objectStore(STORE);
+      const req = store.put(record);
+
+      req.onerror = () => {
+        if (settled) return;
+        settled = true;
+        reject(req.error || new Error('IndexedDB put failed'));
+      };
+      tx.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      tx.onerror = () => {
+        if (settled) return;
+        settled = true;
+        reject(tx.error || new Error('IndexedDB transaction failed'));
+      };
+      tx.onabort = () => {
+        if (settled) return;
+        settled = true;
+        reject(tx.error || new Error('IndexedDB transaction aborted'));
+      };
     });
   }
 
@@ -616,6 +637,28 @@
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
+  }
+
+  // Tracks whether IndexedDB has actually proven writable this session.
+  // Once a real put fails, or the startup health check fails, this flips to
+  // false so every later capture skips straight to the in-memory fallback
+  // instead of repeatedly re-attempting (and re-logging) the same failure.
+  let indexedDBAvailable = true;
+
+  async function checkIndexedDBHealth() {
+    try {
+      const testId = '__health_check__' + crypto.randomUUID();
+      await idbPut({ id: testId, __healthCheck: true });
+      await idbDelete(testId);
+      return true;
+    } catch (e) {
+      console.error('IndexedDB health check failed:', {
+        error: e,
+        name: e && e.name,
+        message: e && e.message
+      });
+      return false;
+    }
   }
 
   // Testing-only utility: wipe local guest identity/session and any un-synced
@@ -729,11 +772,28 @@
     goToAlbumScreen({ refresh: !LOCAL_ONLY_MODE });
   });
 
+  let camStatusToken = 0;
   function showCamStatus(message) {
+    camStatusToken++;
     camStatusMsg.textContent = message;
   }
   function hideCamStatus() {
+    camStatusToken++;
     camStatusMsg.textContent = '';
+  }
+  // Shows a message that clears itself after `ms` — unless a newer status
+  // call (another showCamStatus/hideCamStatus/showTemporaryCamStatus) has
+  // already happened in the meantime, in which case this stale timeout
+  // does nothing rather than wiping out whatever is showing now.
+  function showTemporaryCamStatus(message, ms) {
+    camStatusToken++;
+    const myToken = camStatusToken;
+    camStatusMsg.textContent = message;
+    setTimeout(() => {
+      if (camStatusToken === myToken) {
+        camStatusMsg.textContent = '';
+      }
+    }, ms);
   }
 
   // Resolves true once the video element actually has real frame dimensions from
@@ -1207,15 +1267,39 @@
         syncState: 'local'
       };
 
-      // ---- Local save (IndexedDB) ----
-      try {
-        await idbPut(record);
-      } catch (saveErr) {
-        console.error('local IndexedDB save failed:', saveErr, { photoId: record.id });
-        showCamStatus('Gagal menyimpan foto secara lokal, coba lagi.');
-        record = null;
-        return;
+      // ---- Local save (IndexedDB), with an in-memory fallback ----
+      // A capture + Kodak development that already succeeded must never be
+      // thrown away just because the local database write failed. Skip the
+      // attempt entirely once IndexedDB is known broken this session,
+      // rather than re-failing (and re-logging) on every single photo.
+      let persisted = false;
+      if (indexedDBAvailable) {
+        try {
+          // In local-only testing mode, only the developed image needs to
+          // survive a refresh — keep the original in memory for this
+          // session only, to reduce what's actually written to storage.
+          // The real Supabase architecture (both blobs persisted) is
+          // untouched once LOCAL_ONLY_MODE is turned off.
+          const dbRecord = LOCAL_ONLY_MODE
+            ? Object.assign({}, record, { originalBlob: null })
+            : record;
+          await idbPut(dbRecord);
+          persisted = true;
+        } catch (saveErr) {
+          console.error('IndexedDB local save failed:', {
+            error: saveErr,
+            name: saveErr && saveErr.name,
+            message: saveErr && saveErr.message,
+            photoId: record.id,
+            blobSize: captured.developedBlob && captured.developedBlob.size,
+            originalBlobSize: captured.originalBlob && captured.originalBlob.size
+          });
+          // Stop retrying IndexedDB for the rest of this session — go
+          // straight to the memory fallback on every subsequent capture.
+          indexedDBAvailable = false;
+        }
       }
+      record.localPersistence = persisted ? 'saved' : 'memory';
 
       developedUrl = URL.createObjectURL(captured.developedBlob);
       state.pendingShots.push(Object.assign({}, record, { developedUrl }));
@@ -1223,6 +1307,12 @@
       state.latestPhotoUrl = developedUrl;
       state.usedCount += 1;
       succeeded = true;
+
+      if (!persisted) {
+        // Non-fatal — the photo is safe in memory for this session; the
+        // guest just shouldn't refresh the page before it's backed up.
+        showTemporaryCamStatus('Foto tersimpan sementara. Jangan refresh halaman.', 4000);
+      }
     } finally {
       // Torch-off is itself best-effort and must never turn a successful
       // capture into an error, and must never be skipped after a failed one.
@@ -1535,6 +1625,11 @@
     const identity = getOrCreateGuest();
     state.guestId = identity.guestId;
     state.guestSecret = identity.guestSecret;
+
+    indexedDBAvailable = await checkIndexedDBHealth();
+    if (!indexedDBAvailable) {
+      console.error('IndexedDB unavailable this session — captures will use the in-memory fallback.');
+    }
 
     try {
       const records = await idbGetAllForGuest(state.guestId);
