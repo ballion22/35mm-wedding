@@ -319,7 +319,7 @@
     <button class="btn-primary" id="btn-take-photo">Ambil Foto →</button>
     <p class="album-limit-msg" id="album-limit-msg">Jatah 15 foto kamu sudah habis — terima kasih sudah mengabadikan momen ini! Kamu masih bisa menjelajahi album bersama di bawah.</p>
     <div class="album-header">
-      <span class="roll-title">Album Bersama</span>
+      <span class="roll-title" id="album-title-label">Album Bersama</span>
       <button class="album-refresh-btn" id="btn-album-refresh" title="Muat ulang" aria-label="Muat ulang">⟳</button>
     </div>
     <div class="album-empty" id="album-empty">Belum ada foto. Jadilah yang pertama memotret!</div>
@@ -360,6 +360,13 @@
   buildSprocket(document.getElementById('sprocket-bottom'));
 
   // ---------- data ----------
+  // DEVELOPMENT FLAG — set to false to re-enable Supabase upload/album sync.
+  // While true, every photo stays entirely local (IndexedDB is the source
+  // of truth, not a temporary outbox): no upload, no album fetch, no used-
+  // count fetch. Everything else (camera, Kodak processing, 15-shot limit,
+  // fullscreen/download/share) behaves identically either way.
+  const LOCAL_ONLY_MODE = true;
+
   // One film for the whole wedding — no more per-guest selection.
   const KODAK_FILTER = 'sepia(0.22) saturate(1.45) contrast(1.08) brightness(1.05)';
   const KODAK_FILM_ID = 'kodak';
@@ -367,6 +374,13 @@
   const CAPTURE_MAX_DIM = 1280;
   const CAPTURE_QUALITY = 0.85;
   const STORAGE_BUCKET = 'wedding-photos';
+
+  // Photos in local-only mode aren't backed up anywhere yet — make that
+  // visible in the album header rather than implying they're shared.
+  const albumTitleLabel = document.getElementById('album-title-label');
+  if (albumTitleLabel) {
+    albumTitleLabel.textContent = LOCAL_ONLY_MODE ? 'Album Sementara' : 'Album Bersama';
+  }
 
   // Feature-detect baking a CSS filter into a canvas. Supported in Safari
   // since 15.4 and in Chrome for years; if it's ever missing, the "developed"
@@ -466,7 +480,7 @@
   // the local outbox copy is deleted. Never throws — failures just leave the
   // photo as 'failed' for the next retry (next load, or regaining connectivity).
   async function syncPhotoToServer(record) {
-    if (!supabaseClient) return;
+    if (LOCAL_ONLY_MODE || !supabaseClient) return;
     await setSyncState(record, 'pending');
     try {
       const { data, error } = await supabaseClient.functions.invoke('photo-upload', {
@@ -524,7 +538,7 @@
   // Re-attempts every photo that isn't confirmed synced yet. Safe to call
   // repeatedly — the backend treats the same photo ID as an idempotent retry.
   function retryPendingUploads() {
-    if (!supabaseClient) return;
+    if (LOCAL_ONLY_MODE || !supabaseClient) return;
     state.pendingShots
       .filter(s => s.syncState && s.syncState !== 'synced')
       .forEach(s => { syncPhotoToServer(s); });
@@ -1200,10 +1214,12 @@
 
     if (succeeded && record) {
       await stopCamera();
-      goToAlbumScreen({ refresh: true });
-      // Fire-and-forget: uploading happens in the background and must never
-      // hold up returning to the album or block the next shot.
-      syncPhotoToServer(record);
+      goToAlbumScreen({ refresh: !LOCAL_ONLY_MODE });
+      if (!LOCAL_ONLY_MODE) {
+        // Fire-and-forget: uploading happens in the background and must
+        // never hold up returning to the album or block the next shot.
+        syncPhotoToServer(record);
+      }
     }
   });
 
@@ -1220,7 +1236,7 @@
   }
 
   async function fetchSharedAlbum() {
-    if (!supabaseClient) return [];
+    if (LOCAL_ONLY_MODE || !supabaseClient) return [];
     try {
       const { data, error } = await supabaseClient
         .from('photos')
@@ -1242,7 +1258,7 @@
   }
 
   async function fetchUsedCount() {
-    if (!supabaseClient || !state.guestId) return null;
+    if (LOCAL_ONLY_MODE || !supabaseClient || !state.guestId) return null;
     try {
       const { count, error } = await supabaseClient
         .from('photos')
@@ -1299,7 +1315,7 @@
     albumGrid.style.display = 'grid';
     merged.forEach(item => {
       const cell = document.createElement('div');
-      cell.className = 'album-item' + (item.pendingLocal ? ' pending-local' : '');
+      cell.className = 'album-item' + (item.pendingLocal && !LOCAL_ONLY_MODE ? ' pending-local' : '');
       cell.dataset.id = item.id;
       cell.style.backgroundImage = `url(${item.url})`;
       cell.innerHTML = `<div class="album-item-name">${item.guestName || 'Tamu'}</div>`;
@@ -1317,7 +1333,7 @@
     renderAlbumGuestLine();
     renderAlbumGrid();
 
-    if (opts.refresh !== false && supabaseClient) {
+    if (!LOCAL_ONLY_MODE && opts.refresh !== false && supabaseClient) {
       try {
         const [serverItems, serverUsed] = await Promise.all([fetchSharedAlbum(), fetchUsedCount()]);
         state.albumServerItems = serverItems;
@@ -1474,7 +1490,11 @@
   // ---------- TEST-ONLY: reset local identity/session and start over ----------
   const btnResetTest = document.getElementById('btn-reset-test');
   btnResetTest.addEventListener('click', async () => {
-    const confirmed = window.confirm('Mode uji: ini akan menghapus identitas tamu di perangkat ini (bukan foto yang sudah diunggah ke album bersama) dan memulai dari awal dengan ID baru. Lanjutkan?');
+    const confirmed = window.confirm(
+      LOCAL_ONLY_MODE
+        ? 'Mode uji (lokal): ini akan menghapus SEMUA foto yang tersimpan di perangkat ini — belum ada yang diunggah ke server dalam mode ini — dan memulai dari awal dengan ID baru. Lanjutkan?'
+        : 'Mode uji: ini akan menghapus identitas tamu di perangkat ini (bukan foto yang sudah diunggah ke album bersama) dan memulai dari awal dengan ID baru. Lanjutkan?'
+    );
     if (!confirmed) return;
     btnResetTest.disabled = true;
     await stopCamera();
@@ -1499,7 +1519,9 @@
     } catch (e) {
       state.pendingShots = [];
     }
-    state.usedCount = pendingLocalUnsyncedCount();
+    // In local-only mode, IndexedDB is the permanent source of truth (not a
+    // temporary outbox) — every locally stored photo counts, full stop.
+    state.usedCount = LOCAL_ONLY_MODE ? state.pendingShots.length : pendingLocalUnsyncedCount();
 
     const savedName = localStorage.getItem('wc_guest_name');
 
