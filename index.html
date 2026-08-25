@@ -85,7 +85,16 @@
     cursor: pointer;
   }
   .btn-primary:disabled { background: var(--paper-dim); opacity: 0.5; cursor: not-allowed; }
-  .cam-top { display: flex; align-items: center; justify-content: center; padding-bottom: 12px; }
+  .cam-top { display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; }
+  .top-flash-btn {
+    width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+    border: 1px solid var(--amber-dim);
+    background: var(--dark-edge);
+    color: var(--paper-dim);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 0;
+  }
+  .top-flash-btn.active { border-color: var(--amber); background: rgba(232,163,61,0.18); color: var(--amber); }
   .frame-counter { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 4px; background: var(--dark-edge); border: 1px solid var(--amber-dim); flex-shrink: 0; }
   .rec-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--safety); box-shadow: 0 0 6px var(--safety); }
   .frame-num { font-family: 'Courier New', monospace; font-size: 13px; letter-spacing: 0.05em; color: var(--amber); text-shadow: 0 0 8px var(--amber-dim); white-space: nowrap; }
@@ -125,7 +134,6 @@
     padding: 0; cursor: pointer; overflow: hidden;
   }
   .latest-thumb.has-photo .latest-thumb-empty-icon { display: none; }
-  .cam-secondary-controls { display: flex; gap: 8px; flex-shrink: 0; }
   .secondary-btn {
     width: 40px; height: 40px; border-radius: 50%;
     border: 1px solid var(--amber-dim);
@@ -135,7 +143,6 @@
     cursor: pointer; padding: 0; flex-shrink: 0;
   }
   .secondary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .secondary-btn.flash-btn.active { border-color: var(--amber); background: rgba(232,163,61,0.18); color: var(--amber); }
   .shutter { width: 64px; height: 64px; border-radius: 50%; background: var(--paper); border: 4px solid var(--amber); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
   .shutter:disabled { border-color: var(--paper-dim); opacity: 0.5; cursor: not-allowed; }
   h2.title2 { font-family: Georgia, serif; font-size: 24px; color: var(--paper); margin: 0 0 4px; }
@@ -241,6 +248,9 @@
     color: var(--paper);
     font-size: 13px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .lightbox-action-btn:active { border-color: var(--amber); color: var(--amber); }
   .lightbox-toast { margin-top: 10px; font-size: 11px; color: var(--amber); text-align: center; min-height: 14px; }
@@ -268,6 +278,11 @@
   <!-- CAMERA -->
   <div class="screen" id="screen-camera">
     <div class="cam-top">
+      <button class="top-flash-btn" id="btn-flash" title="Flash" aria-label="Flash">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+      </button>
       <div class="frame-counter"><div class="rec-dot"></div><span class="frame-num" id="frame-num">15/15 tersisa</span></div>
     </div>
     <div class="viewfinder" id="viewfinder">
@@ -297,21 +312,14 @@
           <circle cx="12" cy="13" r="3"></circle>
         </svg>
       </button>
-      <div class="cam-secondary-controls">
-        <button class="secondary-btn" id="btn-flip" title="Ganti kamera" aria-label="Ganti kamera">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="17 1 21 5 17 9"></polyline>
-            <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
-            <polyline points="7 23 3 19 7 15"></polyline>
-            <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
-          </svg>
-        </button>
-        <button class="secondary-btn flash-btn" id="btn-flash" title="Flash" aria-label="Flash">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-          </svg>
-        </button>
-      </div>
+      <button class="secondary-btn" id="btn-flip" title="Ganti kamera" aria-label="Ganti kamera">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="17 1 21 5 17 9"></polyline>
+          <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+          <polyline points="7 23 3 19 7 15"></polyline>
+          <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+        </svg>
+      </button>
     </div>
   </div>
 
@@ -320,7 +328,12 @@
     <div class="eyebrow">The Wedding of</div>
     <h2 class="title2">Dhani &amp; Firda</h2>
     <p class="album-guest-line" id="album-guest-line"></p>
-    <button class="btn-primary" id="btn-take-photo">Ambil Foto →</button>
+    <button class="btn-primary" id="btn-take-photo" title="Ambil Foto" aria-label="Ambil Foto">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#14110E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block; margin:0 auto;">
+        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+        <circle cx="12" cy="13" r="3"></circle>
+      </svg>
+    </button>
     <p class="album-limit-msg" id="album-limit-msg">Jatah 15 foto kamu sudah habis — terima kasih sudah mengabadikan momen ini! Kamu masih bisa menjelajahi album bersama di bawah.</p>
     <div class="album-header">
       <span class="roll-title" id="album-title-label">Album Bersama</span>
@@ -343,8 +356,22 @@
   <div class="lightbox-footer">
     <span class="lightbox-caption" id="lightbox-caption"></span>
     <div class="lightbox-actions">
-      <button class="lightbox-action-btn" id="lightbox-download">Unduh</button>
-      <button class="lightbox-action-btn" id="lightbox-share">Bagikan</button>
+      <button class="lightbox-action-btn" id="lightbox-download" title="Unduh" aria-label="Unduh">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+      </button>
+      <button class="lightbox-action-btn" id="lightbox-share" title="Bagikan" aria-label="Bagikan">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="18" cy="5" r="3"></circle>
+          <circle cx="6" cy="12" r="3"></circle>
+          <circle cx="18" cy="19" r="3"></circle>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+        </svg>
+      </button>
     </div>
     <div class="lightbox-toast" id="lightbox-toast"></div>
   </div>
@@ -372,7 +399,7 @@
   const LOCAL_ONLY_MODE = true;
 
   // One film for the whole wedding — no more per-guest selection.
-  const KODAK_FILTER = 'sepia(0.22) saturate(1.45) contrast(1.08) brightness(1.05)';
+  const KODAK_FILTER = 'sepia(0.28) saturate(1.20) contrast(0.97) brightness(1.07) hue-rotate(-8deg)';
   const KODAK_FILM_ID = 'kodak';
   const FRAME_LIMIT = 15; // lifetime total per guest, not reusable
   const CAPTURE_MAX_DIM = 1280;
@@ -397,6 +424,33 @@
       return false;
     }
   })();
+
+  // Very light film grain: a small noise texture generated ONCE and cached,
+  // then tiled with a cheap pattern fill on every capture — never a
+  // per-pixel loop over the full-resolution photo, so it stays fast on
+  // mobile regardless of how many photos are taken in a session.
+  let grainPatternCanvas = null;
+  function getGrainPattern(ctx) {
+    if (!grainPatternCanvas) {
+      const size = 96;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const gctx = canvas.getContext('2d');
+      const imageData = gctx.createImageData(size, size);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const v = 128 + (Math.random() - 0.5) * 40;
+        data[i] = v;
+        data[i + 1] = v;
+        data[i + 2] = v;
+        data[i + 3] = 255;
+      }
+      gctx.putImageData(imageData, 0, 0);
+      grainPatternCanvas = canvas;
+    }
+    return ctx.createPattern(grainPatternCanvas, 'repeat');
+  }
 
   // ---------- local identity ----------
   function getOrCreateGuest() {
@@ -1165,6 +1219,34 @@
         try { dctx.filter = KODAK_FILTER; } catch (e) {}
         dctx.drawImage(originalCanvas, 0, 0);
 
+        // Subtle warm overlay + soft creamy fade — flat, cheap fillRects,
+        // not per-pixel work, so this adds negligible capture time.
+        try {
+          dctx.filter = 'none';
+          dctx.fillStyle = 'rgba(255, 210, 120, 0.08)';
+          dctx.fillRect(0, 0, tw, th);
+          dctx.fillStyle = 'rgba(255, 245, 220, 0.04)';
+          dctx.fillRect(0, 0, tw, th);
+        } catch (e) {
+          console.error('Kodak overlay pass failed (continuing without it):', e);
+        }
+
+        // Very light film grain — purely cosmetic, never allowed to fail
+        // the capture itself.
+        try {
+          const pattern = getGrainPattern(dctx);
+          if (pattern) {
+            dctx.save();
+            dctx.globalAlpha = 0.05;
+            dctx.globalCompositeOperation = 'overlay';
+            dctx.fillStyle = pattern;
+            dctx.fillRect(0, 0, tw, th);
+            dctx.restore();
+          }
+        } catch (e) {
+          console.error('film grain pass failed (continuing without it):', e);
+        }
+
         devCanvas.toBlob(developedBlob => {
           resolve({
             originalBlob,
@@ -1327,16 +1409,27 @@
     }
 
     if (succeeded && record) {
-      // Stay on the camera page — update in place and leave the stream
-      // running so another shot can be taken immediately. Only leaving the
-      // camera page (thumbnail tap, flip, lens switch, reset) stops it.
+      // Always update in place first, whether or not we're about to leave —
+      // the Album (if we do navigate) and the camera page (if we don't)
+      // should both reflect the true post-capture state immediately.
       updateFrameCounter();
       updateLatestThumbnail();
       if (!LOCAL_ONLY_MODE) {
         // Fire-and-forget: uploading happens in the background and must
-        // never hold up the next shot.
+        // never hold up the next shot or the album navigation below.
         syncPhotoToServer(record);
       }
+
+      if (state.usedCount >= FRAME_LIMIT) {
+        // That was the final frame — the roll is done. There's no separate
+        // "finished" screen; the Album itself is the destination, with the
+        // Take Photo control simply hidden once there are no frames left.
+        await stopCamera();
+        goToAlbumScreen({ refresh: !LOCAL_ONLY_MODE });
+      }
+      // Otherwise: stay on the camera page, stream still live, ready for
+      // the next shot immediately. Only leaving the camera page some other
+      // way (thumbnail tap, flip, lens switch, reset) stops it early.
     }
   });
 
